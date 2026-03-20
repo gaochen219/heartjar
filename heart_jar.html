@@ -330,8 +330,12 @@ const S = {
 let db;
 
 // ── INIT ─────────────────────────────────────────
-firebase.initializeApp(firebaseConfig);
-db = firebase.firestore();
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+} catch(e) {
+  console.error('Firebase init error:', e);
+}
 
 window.addEventListener('load', () => {
   S.userName = localStorage.getItem('hj_user') || '';
@@ -343,6 +347,7 @@ window.addEventListener('load', () => {
       e.target.placeholder = 'Loading...';
       setTimeout(() => {
         e.target.placeholder = '搜索项目/任务...';
+        if (!db) { toast('Connection error — check your internet'); return; }
         S.userName ? enterApp() : showScreen('login');
       }, 500);
     }
