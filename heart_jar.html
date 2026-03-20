@@ -1,451 +1,236 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="工作台">
-  <title>工作台</title>
+  <meta name="apple-mobile-web-app-title" content="Dashboard">
+  <title>Dashboard</title>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <style>
-  /* ===== RESET & VARIABLES ===== */
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   :root {
-    --pink: #ff6b9d;
-    --pink-light: #ffb3d1;
-    --pink-pale: #fff0f6;
-    --pink-bg: #fff8fa;
-    --text: #2d2d2d;
-    --text-2: #666;
-    --text-3: #aaa;
-    --border: #f5dce8;
-    --white: #ffffff;
-    --work-bg: #f0f2f5;
-    --work-blue: #1677ff;
-    --work-green: #52c41a;
-    --work-orange: #fa8c16;
-    --work-border: #e8e8e8;
-    --work-text: #262626;
-    --work-text-2: #595959;
-    --work-text-3: #bfbfbf;
+    --pink:#ff6b9d; --pink-light:#ffb3d1; --pink-pale:#fff0f6; --pink-bg:#fff8fa;
+    --text:#2d2d2d; --text-2:#666; --text-3:#aaa; --border:#f5dce8; --white:#fff;
+    --work-bg:#f0f2f5; --work-blue:#1677ff; --work-green:#52c41a; --work-orange:#fa8c16;
+    --work-border:#e8e8e8; --work-text:#262626; --work-text-3:#bfbfbf;
   }
-  html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; }
+  html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif; }
+  .screen { position:fixed; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .screen.hidden { display:none !important; }
 
-  /* ===== SCREENS ===== */
-  .screen { position: fixed; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--work-bg); }
-  .screen.hidden { display: none !important; }
+  /* ---- DISGUISE ---- */
+  #screen-disguise { background:var(--work-bg); }
+  .w-header { background:#fff; padding:env(safe-area-inset-top,44px) 16px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--work-border); position:sticky; top:0; z-index:10; }
+  .w-title { font-size:18px; font-weight:600; color:var(--work-text); }
+  .w-avatar { width:32px; height:32px; background:var(--work-blue); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:600; }
+  .w-search-wrap { padding:12px 16px; background:#fff; border-bottom:1px solid var(--work-border); }
+  .w-search { display:flex; align-items:center; background:var(--work-bg); border-radius:8px; padding:8px 12px; gap:8px; }
+  .w-search input { flex:1; border:none; background:none; outline:none; font-size:14px; color:var(--work-text); }
+  .w-search input::placeholder { color:var(--work-text-3); }
+  .w-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:16px; }
+  .w-stat { background:#fff; border-radius:10px; padding:14px 12px; text-align:center; }
+  .w-stat-num { font-size:28px; font-weight:700; }
+  .w-stat-label { font-size:11px; color:var(--work-text-3); margin-top:4px; }
+  .w-stat.blue .w-stat-num { color:var(--work-blue); }
+  .w-stat.green .w-stat-num { color:var(--work-green); }
+  .w-stat.orange .w-stat-num { color:var(--work-orange); }
+  .w-section { padding:0 16px 100px; }
+  .w-section-title { font-size:13px; color:#595959; margin-bottom:10px; font-weight:500; }
+  .w-card { background:#fff; border-radius:10px; padding:14px; margin-bottom:10px; }
+  .w-card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .w-card-name { font-size:14px; font-weight:500; color:var(--work-text); flex:1; }
+  .w-tag { font-size:11px; padding:2px 8px; border-radius:4px; margin-left:8px; white-space:nowrap; }
+  .w-tag.ongoing { background:#e6f4ff; color:var(--work-blue); }
+  .w-tag.done { background:#f6ffed; color:var(--work-green); }
+  .w-tag.pending { background:#fff7e6; color:var(--work-orange); }
+  .w-bar { height:5px; background:#f0f0f0; border-radius:3px; margin-bottom:8px; }
+  .w-bar-fill { height:100%; border-radius:3px; }
+  .w-meta { font-size:11px; color:var(--work-text-3); }
+  .w-nav { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--work-border); display:grid; grid-template-columns:repeat(4,1fr); padding-bottom:env(safe-area-inset-bottom,0); z-index:10; }
+  .w-nav-item { display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:3px; }
+  .w-nav-icon { font-size:20px; }
+  .w-nav-label { font-size:10px; color:var(--work-text-3); }
+  .w-nav-item.active .w-nav-label { color:var(--work-blue); }
 
-  /* ===== DISGUISE: WORK DASHBOARD ===== */
-  .work-header {
-    background: #fff;
-    padding: env(safe-area-inset-top, 44px) 16px 12px;
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--work-border);
-    position: sticky; top: 0; z-index: 10;
-  }
-  .work-header-title { font-size: 18px; font-weight: 600; color: var(--work-text); }
-  .work-avatar {
-    width: 32px; height: 32px; background: var(--work-blue);
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 13px; font-weight: 600;
-  }
-  .work-search-wrap { padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--work-border); }
-  .work-search {
-    display: flex; align-items: center; background: var(--work-bg);
-    border-radius: 8px; padding: 8px 12px; gap: 8px;
-  }
-  .work-search-icon { color: var(--work-text-3); font-size: 15px; }
-  .work-search input {
-    flex: 1; border: none; background: none; outline: none;
-    font-size: 14px; color: var(--work-text);
-  }
-  .work-search input::placeholder { color: var(--work-text-3); }
-  .work-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px; }
-  .stat-card { background: #fff; border-radius: 10px; padding: 14px 12px; text-align: center; }
-  .stat-num { font-size: 28px; font-weight: 700; }
-  .stat-label { font-size: 11px; color: var(--work-text-3); margin-top: 4px; }
-  .stat-card.blue .stat-num { color: var(--work-blue); }
-  .stat-card.green .stat-num { color: var(--work-green); }
-  .stat-card.orange .stat-num { color: var(--work-orange); }
-  .work-section { padding: 0 16px 100px; }
-  .work-section-title { font-size: 13px; color: var(--work-text-2); margin-bottom: 10px; font-weight: 500; }
-  .work-card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
-  .work-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-  .work-card-title { font-size: 14px; font-weight: 500; color: var(--work-text); flex: 1; }
-  .work-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 8px; white-space: nowrap; }
-  .work-tag.ongoing { background: #e6f4ff; color: var(--work-blue); }
-  .work-tag.done { background: #f6ffed; color: var(--work-green); }
-  .work-tag.pending { background: #fff7e6; color: var(--work-orange); }
-  .work-progress-bar { height: 5px; background: #f0f0f0; border-radius: 3px; margin-bottom: 8px; }
-  .work-progress-fill { height: 100%; border-radius: 3px; }
-  .work-card-meta { font-size: 11px; color: var(--work-text-3); }
-  .work-nav {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: #fff; border-top: 1px solid var(--work-border);
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    padding-bottom: env(safe-area-inset-bottom, 0); z-index: 10;
-  }
-  .work-nav-item { display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 3px; }
-  .work-nav-item .wni-icon { font-size: 20px; }
-  .work-nav-item .wni-label { font-size: 10px; color: var(--work-text-3); }
-  .work-nav-item.active .wni-label { color: var(--work-blue); }
+  /* ---- LOGIN ---- */
+  #screen-login { background:var(--pink-bg) !important; display:flex !important; flex-direction:column; align-items:center; justify-content:center; padding:40px 32px; }
+  .login-icon { font-size:72px; margin-bottom:8px; }
+  .login-title { font-size:26px; font-weight:700; color:var(--pink); margin-bottom:6px; }
+  .login-sub { font-size:13px; color:var(--text-3); margin-bottom:48px; text-align:center; line-height:1.6; }
+  .login-label { font-size:13px; color:var(--text-2); align-self:flex-start; margin-bottom:8px; }
+  .login-input { width:100%; padding:14px 16px; border:1.5px solid var(--border); border-radius:12px; font-size:16px; outline:none; color:var(--text); background:var(--white); margin-bottom:24px; font-family:inherit; }
+  .login-input:focus { border-color:var(--pink-light); }
+  .login-btn { width:100%; padding:16px; background:var(--pink); color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; }
 
-  /* ===== LOGIN SCREEN ===== */
-  #screen-login {
-    background: var(--pink-bg) !important;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 40px 32px;
-  }
-  .login-jar { font-size: 72px; margin-bottom: 8px; }
-  .login-title { font-size: 24px; font-weight: 700; color: var(--pink); margin-bottom: 4px; }
-  .login-sub { font-size: 13px; color: var(--text-3); margin-bottom: 48px; }
-  .login-label { font-size: 13px; color: var(--text-2); align-self: flex-start; margin-bottom: 8px; }
-  .login-input {
-    width: 100%; padding: 14px 16px;
-    border: 1.5px solid var(--border); border-radius: 12px;
-    font-size: 16px; outline: none; color: var(--text);
-    background: var(--white); margin-bottom: 24px;
-  }
-  .login-input:focus { border-color: var(--pink-light); }
-  .login-btn {
-    width: 100%; padding: 16px; background: var(--pink); color: #fff;
-    border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer;
-  }
+  /* ---- APP ---- */
+  #screen-app { background:var(--pink-bg) !important; display:flex !important; flex-direction:column; }
+  .app-header { background:var(--white); padding:env(safe-area-inset-top,44px) 16px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; flex-shrink:0; }
+  .app-title { font-size:16px; font-weight:600; color:var(--text); }
+  .app-user { font-size:12px; color:var(--text-3); margin-top:1px; }
+  .app-logout { font-size:13px; color:var(--text-3); background:none; border:none; cursor:pointer; padding:4px 8px; }
+  .app-main { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:72px; }
+  .tab { padding:16px; }
+  .tab.hidden { display:none !important; }
+  .app-nav { position:fixed; bottom:0; left:0; right:0; background:var(--white); border-top:1px solid var(--border); display:grid; grid-template-columns:repeat(3,1fr); padding-bottom:env(safe-area-inset-bottom,0); z-index:10; }
+  .app-nav-item { display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:2px; cursor:pointer; }
+  .nav-icon { font-size:24px; }
+  .nav-label { font-size:10px; color:var(--text-3); }
+  .app-nav-item.active .nav-label { color:var(--pink); font-weight:600; }
 
-  /* ===== APP SCREEN ===== */
-  #screen-app { background: var(--pink-bg) !important; display: flex !important; flex-direction: column; }
-  .app-header {
-    background: var(--white);
-    padding: env(safe-area-inset-top, 44px) 16px 12px;
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 10; flex-shrink: 0;
-  }
-  .app-header-title { font-size: 16px; font-weight: 600; color: var(--text); }
-  .app-header-user { font-size: 12px; color: var(--text-3); margin-top: 1px; }
-  .app-logout { font-size: 13px; color: var(--text-3); padding: 4px 8px; background: none; border: none; cursor: pointer; }
-  .app-main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 70px; }
-  .tab-content { padding: 16px; }
-  .tab-content.hidden { display: none !important; }
-  .app-nav {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--white); border-top: 1px solid var(--border);
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    padding-bottom: env(safe-area-inset-bottom, 0); z-index: 10;
-  }
-  .app-nav-item { display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 2px; cursor: pointer; }
-  .app-nav-item .nav-icon { font-size: 22px; }
-  .app-nav-item .nav-label { font-size: 10px; color: var(--text-3); }
-  .app-nav-item.active .nav-label { color: var(--pink); }
+  /* ---- JAR TAB ---- */
+  .jar-top { text-align:center; padding:24px 0 20px; }
+  .jar-count-row { display:flex; align-items:baseline; justify-content:center; gap:6px; margin-bottom:28px; }
+  .jar-num { font-size:64px; font-weight:700; color:var(--pink); line-height:1; }
+  .jar-unit { font-size:18px; color:var(--text-3); }
+  .jar-wrap { display:flex; flex-direction:column; align-items:center; margin-bottom:24px; }
+  .jar-neck { width:80px; height:16px; border:2.5px solid var(--pink-light); border-bottom:none; border-radius:8px 8px 0 0; background:var(--white); margin-bottom:-2px; z-index:1; }
+  .jar-body { width:150px; height:180px; border:2.5px solid var(--pink-light); border-radius:4px 4px 34px 34px; background:var(--white); overflow:hidden; position:relative; }
+  .jar-fill { position:absolute; bottom:0; left:0; right:0; background:var(--pink-pale); transition:height 0.7s ease; display:flex; flex-wrap:wrap; align-content:flex-end; padding:6px; gap:1px; }
+  .jh { font-size:17px; }
+  .jar-egg { background:var(--pink-pale); border:1px solid var(--pink-light); border-radius:12px; padding:12px 16px; margin:0 0 20px; font-size:14px; color:var(--pink); text-align:center; font-style:italic; line-height:1.5; }
+  .legend-item { display:flex; align-items:center; background:var(--white); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
+  .legend-icon { font-size:20px; margin-right:12px; }
+  .legend-desc { flex:1; font-size:13px; color:var(--text-2); }
+  .legend-pts { font-size:14px; font-weight:600; color:var(--pink); }
 
-  /* ===== JAR TAB ===== */
-  .jar-center { text-align: center; padding: 20px 0 16px; }
-  .jar-count-wrap { display: flex; align-items: baseline; justify-content: center; gap: 4px; margin-bottom: 24px; }
-  .jar-count { font-size: 56px; font-weight: 700; color: var(--pink); line-height: 1; }
-  .jar-unit { font-size: 16px; color: var(--text-3); }
-  .jar-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
-  .jar-neck {
-    width: 80px; height: 16px;
-    border: 2.5px solid var(--pink-light); border-bottom: none;
-    border-radius: 8px 8px 0 0; background: var(--white); margin-bottom: -2px; z-index: 1;
-  }
-  .jar-body {
-    width: 140px; height: 170px;
-    border: 2.5px solid var(--pink-light); border-radius: 4px 4px 30px 30px;
-    background: var(--white); overflow: hidden; position: relative;
-  }
-  .jar-fill {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    background: var(--pink-pale); transition: height 0.6s ease;
-    display: flex; flex-wrap: wrap; align-content: flex-end;
-    padding: 6px 4px; gap: 1px; align-items: flex-end;
-  }
-  .jar-heart-item { font-size: 16px; }
-  .jar-egg {
-    background: var(--pink-pale); border: 1px solid var(--pink-light);
-    border-radius: 12px; padding: 12px 16px; margin: 0 0 16px;
-    font-size: 14px; color: var(--pink); text-align: center; font-style: italic;
-  }
-  .jar-guide { margin-top: 8px; }
-  .guide-item {
-    display: flex; align-items: center; background: var(--white);
-    border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
-    font-size: 13px; color: var(--text-2);
-  }
-  .guide-icon { font-size: 20px; margin-right: 10px; }
-  .guide-desc { flex: 1; }
-  .guide-plus { color: var(--pink); font-weight: 600; font-size: 14px; }
+  /* ---- SPARKS TAB ---- */
+  .add-btn { display:flex; align-items:center; justify-content:center; gap:8px; background:var(--pink); color:#fff; border:none; border-radius:12px; padding:14px; width:100%; font-size:15px; font-weight:600; margin-bottom:16px; cursor:pointer; }
+  .spark-card { background:var(--white); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+  .spark-img { width:100%; max-height:300px; object-fit:cover; display:block; }
+  .spark-body { padding:12px 14px 14px; }
+  .spark-caption { font-size:14px; color:var(--text); line-height:1.6; margin-bottom:8px; }
+  .spark-meta { font-size:11px; color:var(--text-3); }
 
-  /* ===== ALBUM TAB ===== */
-  .add-btn {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    background: var(--pink); color: #fff; border: none; border-radius: 12px;
-    padding: 14px; width: 100%; font-size: 15px; font-weight: 600;
-    margin-bottom: 16px; cursor: pointer;
-  }
-  .album-card { background: var(--white); border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
-  .album-img-wrap { position: relative; }
-  .album-img { width: 100%; height: 200px; object-fit: cover; display: block; }
-  .album-img.blurred { filter: blur(18px); transform: scale(1.05); }
-  .album-overlay {
-    position: absolute; inset: 0; background: rgba(255,255,255,0.55);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-  }
-  .album-lock-icon { font-size: 38px; margin-bottom: 6px; }
-  .album-lock-text { font-size: 13px; color: var(--text); font-weight: 500; }
-  .album-body { padding: 14px; }
-  .album-unlocked-tag {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: #f6ffed; color: #52c41a; font-size: 11px;
-    border-radius: 6px; padding: 3px 8px; margin-bottom: 8px;
-  }
-  .album-caption { font-size: 14px; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
-  .album-task-box {
-    background: var(--pink-pale); border-radius: 10px; padding: 12px;
-    font-size: 13px; color: var(--text-2); margin-bottom: 10px;
-  }
-  .album-task-title { font-weight: 600; color: var(--pink); margin-bottom: 4px; font-size: 12px; }
-  .unlock-input {
-    width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
-    border-radius: 10px; font-size: 14px; outline: none; color: var(--text);
-    margin-bottom: 8px; font-family: inherit;
-  }
-  .unlock-input:focus { border-color: var(--pink-light); }
-  .unlock-btn {
-    background: var(--pink); color: #fff; border: none;
-    border-radius: 10px; padding: 11px 20px; font-size: 14px;
-    cursor: pointer; width: 100%; font-weight: 500;
-  }
-  .album-meta { font-size: 11px; color: var(--text-3); }
+  /* ---- WHISPERS TAB ---- */
+  .compose { background:var(--white); border-radius:14px; padding:14px; margin-bottom:16px; }
+  .compose-label { font-size:13px; color:var(--text-2); margin-bottom:10px; }
+  .compose-input { width:100%; min-height:80px; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; outline:none; color:var(--text); resize:none; font-family:inherit; display:block; }
+  .compose-input:focus { border-color:var(--pink-light); }
+  .compose-footer { display:flex; justify-content:flex-end; margin-top:10px; }
+  .send-btn { background:var(--pink); color:#fff; border:none; border-radius:10px; padding:10px 24px; font-size:14px; font-weight:600; cursor:pointer; }
+  .whisper-card { background:var(--white); border-radius:14px; padding:14px; margin-bottom:8px; display:flex; gap:12px; align-items:flex-start; }
+  .wh-btn { font-size:28px; cursor:pointer; flex-shrink:0; transition:transform 0.15s; margin-top:2px; }
+  .wh-btn:active { transform:scale(1.35); }
+  .wh-body { flex:1; min-width:0; }
+  .wh-from { font-size:12px; color:var(--text-3); margin-bottom:4px; }
+  .wh-text { font-size:14px; color:var(--text); line-height:1.6; word-break:break-word; }
+  .wh-hint { font-size:11px; color:var(--pink); margin-top:5px; }
+  .wh-time { font-size:11px; color:var(--text-3); margin-top:6px; }
 
-  /* ===== WHISPER TAB ===== */
-  .compose-box { background: var(--white); border-radius: 14px; padding: 14px; margin-bottom: 16px; }
-  .compose-title { font-size: 13px; color: var(--text-2); margin-bottom: 10px; }
-  .compose-textarea {
-    width: 100%; min-height: 80px; padding: 10px 12px;
-    border: 1.5px solid var(--border); border-radius: 10px;
-    font-size: 14px; outline: none; color: var(--text);
-    resize: none; font-family: inherit; display: block;
-  }
-  .compose-textarea:focus { border-color: var(--pink-light); }
-  .compose-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
-  .send-btn {
-    background: var(--pink); color: #fff; border: none;
-    border-radius: 10px; padding: 10px 24px; font-size: 14px;
-    font-weight: 600; cursor: pointer;
-  }
-  .whisper-item {
-    background: var(--white); border-radius: 14px; padding: 14px;
-    margin-bottom: 8px; display: flex; gap: 12px; align-items: flex-start;
-  }
-  .w-heart { font-size: 26px; cursor: pointer; transition: transform 0.2s; flex-shrink: 0; margin-top: 2px; }
-  .w-heart:active { transform: scale(1.4); }
-  .w-body { flex: 1; min-width: 0; }
-  .w-from { font-size: 12px; color: var(--text-3); margin-bottom: 4px; }
-  .w-text { font-size: 14px; color: var(--text); line-height: 1.55; word-break: break-word; }
-  .w-hint { font-size: 11px; color: var(--pink); margin-top: 4px; }
-  .w-time { font-size: 11px; color: var(--text-3); margin-top: 6px; }
+  /* ---- MODAL ---- */
+  #modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:flex-end; }
+  #modal-overlay.hidden { display:none !important; }
+  .modal-box { background:var(--white); width:100%; border-radius:20px 20px 0 0; padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px); max-height:88vh; overflow-y:auto; }
+  .modal-title { font-size:17px; font-weight:600; color:var(--text); margin-bottom:16px; }
+  .modal-label { font-size:13px; color:var(--text-2); margin:14px 0 6px; }
+  .modal-textarea { width:100%; min-height:70px; padding:12px 14px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; outline:none; color:var(--text); resize:none; font-family:inherit; }
+  .modal-textarea:focus { border-color:var(--pink-light); }
+  .file-drop { display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px dashed var(--pink-light); border-radius:10px; padding:28px; color:var(--pink-light); font-size:14px; cursor:pointer; background:var(--pink-pale); gap:6px; }
+  .file-drop-icon { font-size:36px; }
+  .modal-preview { width:100%; border-radius:10px; max-height:220px; object-fit:cover; display:none; margin-top:8px; }
+  .modal-actions { display:flex; gap:10px; margin-top:20px; }
+  .modal-cancel { flex:1; padding:14px; border:1.5px solid var(--border); border-radius:12px; background:none; font-size:15px; color:var(--text-2); cursor:pointer; }
+  .modal-submit { flex:2; padding:14px; background:var(--pink); color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
 
-  /* ===== TIMELINE TAB ===== */
-  .tl-item { display: flex; gap: 12px; margin-bottom: 12px; }
-  .tl-left { display: flex; flex-direction: column; align-items: center; width: 36px; flex-shrink: 0; }
-  .tl-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; }
-  .tl-dot.t-album   { background: #fff7e6; }
-  .tl-dot.t-whisper { background: #f0f5ff; }
-  .tl-dot.t-heart   { background: var(--pink-pale); }
-  .tl-line { flex: 1; width: 2px; background: var(--border); margin-top: 4px; min-height: 16px; }
-  .tl-card { flex: 1; background: var(--white); border-radius: 12px; padding: 12px 14px; }
-  .tl-type { font-size: 11px; color: var(--text-3); margin-bottom: 4px; }
-  .tl-text { font-size: 14px; color: var(--text); line-height: 1.5; }
-  .tl-img { width: 100%; border-radius: 8px; margin-top: 8px; max-height: 150px; object-fit: cover; }
-  .tl-footer { font-size: 11px; color: var(--text-3); margin-top: 8px; }
+  /* ---- FLOATING HEARTS ---- */
+  #hearts-layer { position:fixed; inset:0; pointer-events:none; z-index:9999; overflow:hidden; }
+  @keyframes rise { 0%{transform:translateY(0) translateX(0) scale(1);opacity:1} 100%{transform:translateY(-340px) translateX(var(--dx)) scale(0.3);opacity:0} }
+  .fh { position:absolute; font-size:26px; animation:rise 1.8s ease-out forwards; }
 
-  /* ===== MODAL ===== */
-  #modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-    z-index: 200; display: flex; align-items: flex-end;
-  }
-  #modal-overlay.hidden { display: none !important; }
-  .modal-box {
-    background: var(--white); width: 100%;
-    border-radius: 20px 20px 0 0;
-    padding: 20px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
-    max-height: 88vh; overflow-y: auto;
-  }
-  .modal-title { font-size: 17px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
-  .modal-label { font-size: 13px; color: var(--text-2); margin: 14px 0 6px; }
-  .modal-input {
-    width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
-    border-radius: 10px; font-size: 14px; outline: none; color: var(--text); font-family: inherit;
-  }
-  .modal-input:focus { border-color: var(--pink-light); }
-  .modal-textarea {
-    width: 100%; min-height: 70px; padding: 12px 14px;
-    border: 1.5px solid var(--border); border-radius: 10px;
-    font-size: 14px; outline: none; color: var(--text);
-    resize: none; font-family: inherit;
-  }
-  .modal-textarea:focus { border-color: var(--pink-light); }
-  .modal-file-area {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    border: 2px dashed var(--pink-light); border-radius: 10px;
-    padding: 24px; color: var(--pink-light); font-size: 14px;
-    cursor: pointer; background: var(--pink-pale); gap: 6px;
-  }
-  .modal-file-icon { font-size: 32px; }
-  .modal-preview { width: 100%; border-radius: 10px; max-height: 200px; object-fit: cover; display: none; margin-top: 8px; }
-  .task-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .task-opt {
-    border: 1.5px solid var(--border); border-radius: 10px;
-    padding: 10px 8px; text-align: center; font-size: 13px;
-    color: var(--text-2); cursor: pointer; transition: all 0.15s;
-  }
-  .task-opt.selected { border-color: var(--pink); background: var(--pink-pale); color: var(--pink); }
-  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
-  .modal-cancel {
-    flex: 1; padding: 14px; border: 1.5px solid var(--border);
-    border-radius: 12px; background: none; font-size: 15px; color: var(--text-2); cursor: pointer;
-  }
-  .modal-submit {
-    flex: 2; padding: 14px; background: var(--pink); color: #fff;
-    border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;
-  }
+  /* ---- TOAST ---- */
+  #toast { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.72); color:#fff; padding:12px 20px; border-radius:10px; font-size:14px; z-index:9998; pointer-events:none; opacity:0; transition:opacity 0.2s; white-space:nowrap; }
+  #toast.show { opacity:1; }
 
-  /* ===== FLOATING HEARTS ===== */
-  #hearts-layer { position: fixed; inset: 0; pointer-events: none; z-index: 9999; overflow: hidden; }
-  @keyframes floatUp {
-    0%   { transform: translateY(0) translateX(0) scale(1); opacity: 1; }
-    100% { transform: translateY(-320px) translateX(var(--dx)) scale(0.3); opacity: 0; }
-  }
-  .fheart { position: absolute; font-size: 24px; animation: floatUp 1.8s ease-out forwards; }
-
-  /* ===== TOAST ===== */
-  #toast {
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: rgba(0,0,0,0.72); color: #fff; padding: 12px 20px;
-    border-radius: 10px; font-size: 14px; z-index: 9998; pointer-events: none;
-    opacity: 0; transition: opacity 0.2s; white-space: nowrap;
-  }
-  #toast.show { opacity: 1; }
-
-  /* ===== EMPTY STATE ===== */
-  .empty { text-align: center; padding: 48px 20px; color: var(--text-3); font-size: 14px; }
-  .empty-icon { font-size: 48px; display: block; margin-bottom: 12px; }
+  /* ---- EMPTY STATE ---- */
+  .empty { text-align:center; padding:52px 20px; color:var(--text-3); font-size:14px; }
+  .empty-icon { font-size:52px; display:block; margin-bottom:12px; }
   </style>
 </head>
 <body>
 
-<!-- =============================================
-     SCREEN 1: DISGUISE — 工作台
-     ============================================= -->
+<!-- ===================== DISGUISE ===================== -->
 <div id="screen-disguise" class="screen">
-
-  <div class="work-header">
-    <div class="work-header-title">工作台</div>
-    <div class="work-avatar">我</div>
+  <div class="w-header">
+    <div class="w-title">工作台</div>
+    <div class="w-avatar">我</div>
   </div>
-
-  <div class="work-search-wrap">
-    <div class="work-search">
-      <span class="work-search-icon">🔍</span>
+  <div class="w-search-wrap">
+    <div class="w-search">
+      <span style="color:var(--work-text-3);font-size:15px">🔍</span>
       <input id="work-search" type="text" placeholder="搜索项目/任务..."
              autocomplete="off" autocorrect="off" spellcheck="false">
     </div>
   </div>
-
-  <div class="work-stats">
-    <div class="stat-card blue"><div class="stat-num">8</div><div class="stat-label">进行中</div></div>
-    <div class="stat-card green"><div class="stat-num">12</div><div class="stat-label">已完成</div></div>
-    <div class="stat-card orange"><div class="stat-num">3</div><div class="stat-label">待审核</div></div>
+  <div class="w-stats">
+    <div class="w-stat blue"><div class="w-stat-num">8</div><div class="w-stat-label">进行中</div></div>
+    <div class="w-stat green"><div class="w-stat-num">12</div><div class="w-stat-label">已完成</div></div>
+    <div class="w-stat orange"><div class="w-stat-num">3</div><div class="w-stat-label">待审核</div></div>
   </div>
-
-  <div class="work-section">
-    <div class="work-section-title">本周重点</div>
-
-    <div class="work-card">
-      <div class="work-card-top">
-        <div class="work-card-title">Q2 市场推广策略</div>
-        <span class="work-tag ongoing">进行中</span>
-      </div>
-      <div class="work-progress-bar"><div class="work-progress-fill" style="width:65%;background:var(--work-blue)"></div></div>
-      <div class="work-card-meta">截止 04/15 · 市场部</div>
+  <div class="w-section">
+    <div class="w-section-title">本周重点</div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">Q2 市场推广策略</div><span class="w-tag ongoing">进行中</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:65%;background:var(--work-blue)"></div></div>
+      <div class="w-meta">截止 04/15 · 市场部</div>
     </div>
-
-    <div class="work-card">
-      <div class="work-card-top">
-        <div class="work-card-title">用户调研报告整理</div>
-        <span class="work-tag done">已完成</span>
-      </div>
-      <div class="work-progress-bar"><div class="work-progress-fill" style="width:100%;background:var(--work-green)"></div></div>
-      <div class="work-card-meta">完成 03/10 · 产品组</div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">用户调研报告整理</div><span class="w-tag done">已完成</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:100%;background:var(--work-green)"></div></div>
+      <div class="w-meta">完成 03/10 · 产品组</div>
     </div>
-
-    <div class="work-card">
-      <div class="work-card-top">
-        <div class="work-card-title">竞品分析文档 v2</div>
-        <span class="work-tag ongoing">进行中</span>
-      </div>
-      <div class="work-progress-bar"><div class="work-progress-fill" style="width:25%;background:var(--work-blue)"></div></div>
-      <div class="work-card-meta">截止 04/30 · 战略部</div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">竞品分析文档 v2</div><span class="w-tag ongoing">进行中</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:25%;background:var(--work-blue)"></div></div>
+      <div class="w-meta">截止 04/30 · 战略部</div>
     </div>
-
-    <div class="work-card">
-      <div class="work-card-top">
-        <div class="work-card-title">H1 财务预算审核</div>
-        <span class="work-tag pending">待审核</span>
-      </div>
-      <div class="work-progress-bar"><div class="work-progress-fill" style="width:90%;background:var(--work-orange)"></div></div>
-      <div class="work-card-meta">截止 03/20 · 财务部</div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">H1 财务预算审核</div><span class="w-tag pending">待审核</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:90%;background:var(--work-orange)"></div></div>
+      <div class="w-meta">截止 03/20 · 财务部</div>
     </div>
   </div>
-
-  <div class="work-nav">
-    <div class="work-nav-item active"><span class="wni-icon">📊</span><span class="wni-label">看板</span></div>
-    <div class="work-nav-item"><span class="wni-icon">✅</span><span class="wni-label">任务</span></div>
-    <div class="work-nav-item"><span class="wni-icon">📅</span><span class="wni-label">日历</span></div>
-    <div class="work-nav-item"><span class="wni-icon">👤</span><span class="wni-label">我的</span></div>
+  <div class="w-nav">
+    <div class="w-nav-item active"><span class="w-nav-icon">📊</span><span class="w-nav-label">看板</span></div>
+    <div class="w-nav-item"><span class="w-nav-icon">✅</span><span class="w-nav-label">任务</span></div>
+    <div class="w-nav-item"><span class="w-nav-icon">📅</span><span class="w-nav-label">日历</span></div>
+    <div class="w-nav-item"><span class="w-nav-icon">👤</span><span class="w-nav-label">我的</span></div>
   </div>
 </div>
 
-<!-- =============================================
-     SCREEN 2: LOGIN
-     ============================================= -->
+<!-- ===================== LOGIN ===================== -->
 <div id="screen-login" class="screen hidden">
-  <span class="login-jar">🫙</span>
-  <div class="login-title">心动罐头</div>
-  <div class="login-sub">HeartJar · 只属于我们的小世界</div>
-  <div class="login-label">你的昵称</div>
-  <input id="login-name" class="login-input" type="text" placeholder="输入你的昵称"
-         maxlength="10" autocomplete="off" autocorrect="off">
-  <button class="login-btn" onclick="doLogin()">进入 💗</button>
+  <div class="login-icon">🫙</div>
+  <div class="login-title">HeartJar</div>
+  <div class="login-sub">just the two of us ·<br>our little world</div>
+  <div class="login-label">Your name</div>
+  <input id="login-name" class="login-input" type="text" placeholder="enter your name"
+         maxlength="12" autocomplete="off" autocorrect="off">
+  <button class="login-btn" onclick="doLogin()">Enter 💗</button>
 </div>
 
-<!-- =============================================
-     SCREEN 3: APP
-     ============================================= -->
+<!-- ===================== APP ===================== -->
 <div id="screen-app" class="screen hidden">
-
   <div class="app-header">
     <div>
-      <div class="app-header-title">心动罐头 🫙</div>
-      <div class="app-header-user" id="app-user-label"></div>
+      <div class="app-title">HeartJar 🫙</div>
+      <div class="app-user" id="app-user"></div>
     </div>
-    <button class="app-logout" onclick="doLogout()">退出</button>
+    <button class="app-logout" onclick="doLogout()">Exit</button>
   </div>
 
   <div class="app-main">
 
-    <!-- 罐头 Tab -->
-    <div id="tab-jar" class="tab-content">
-      <div class="jar-center">
-        <div class="jar-count-wrap">
-          <div class="jar-count" id="jar-count">0</div>
-          <div class="jar-unit">颗心</div>
+    <!-- JAR -->
+    <div id="tab-jar" class="tab">
+      <div class="jar-top">
+        <div class="jar-count-row">
+          <div class="jar-num" id="jar-num">0</div>
+          <div class="jar-unit">hearts</div>
         </div>
-        <div class="jar-container">
+        <div class="jar-wrap">
           <div class="jar-neck"></div>
           <div class="jar-body">
             <div class="jar-fill" id="jar-fill"></div>
@@ -453,74 +238,65 @@
         </div>
         <div id="jar-egg" class="jar-egg" style="display:none"></div>
       </div>
-      <div class="jar-guide">
-        <div class="guide-item"><span class="guide-icon">📷</span><span class="guide-desc">存入心动截图</span><span class="guide-plus">+1 💗</span></div>
-        <div class="guide-item"><span class="guide-icon">🔒</span><span class="guide-desc">解锁秘密相册</span><span class="guide-plus">+1 💗</span></div>
-        <div class="guide-item"><span class="guide-icon">💌</span><span class="guide-desc">悄悄话被已读</span><span class="guide-plus">+1 💗</span></div>
+      <div class="legend-item"><span class="legend-icon">✨</span><span class="legend-desc">Save a Spark</span><span class="legend-pts">+1 💗</span></div>
+      <div class="legend-item"><span class="legend-icon">💌</span><span class="legend-desc">Send a Whisper</span><span class="legend-pts">+1 💗</span></div>
+      <div class="legend-item"><span class="legend-icon">👁</span><span class="legend-desc">Read a Whisper</span><span class="legend-pts">+1 💗</span></div>
+    </div>
+
+    <!-- SPARKS -->
+    <div id="tab-sparks" class="tab hidden">
+      <button class="add-btn" onclick="openSparkModal()">✨ Add a Spark</button>
+      <div id="sparks-list">
+        <div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>
       </div>
     </div>
 
-    <!-- 相册 Tab -->
-    <div id="tab-album" class="tab-content hidden">
-      <button class="add-btn" onclick="openAlbumModal()"><span>🔒</span> 添加秘密相册</button>
-      <div id="album-list"><div class="empty"><span class="empty-icon">🖼️</span>加载中...</div></div>
-    </div>
-
-    <!-- 悄悄话 Tab -->
-    <div id="tab-whisper" class="tab-content hidden">
-      <div class="compose-box">
-        <div class="compose-title">💌 发送悄悄话</div>
-        <textarea id="whisper-input" class="compose-textarea"
-                  placeholder="写下想说的话..." rows="3" maxlength="200"></textarea>
+    <!-- WHISPERS -->
+    <div id="tab-whispers" class="tab hidden">
+      <div class="compose">
+        <div class="compose-label">💌 New Whisper</div>
+        <textarea id="whisper-input" class="compose-input"
+                  placeholder="say something..." rows="3" maxlength="300"></textarea>
         <div class="compose-footer">
-          <button class="send-btn" onclick="sendWhisper()">发送</button>
+          <button class="send-btn" onclick="sendWhisper()">Send</button>
         </div>
       </div>
-      <div id="whisper-list"><div class="empty"><span class="empty-icon">💌</span>加载中...</div></div>
-    </div>
-
-    <!-- 时间线 Tab -->
-    <div id="tab-timeline" class="tab-content hidden">
-      <div id="timeline-list"><div class="empty"><span class="empty-icon">📖</span>加载中...</div></div>
+      <div id="whispers-list">
+        <div class="empty"><span class="empty-icon">💌</span>No whispers yet.</div>
+      </div>
     </div>
 
   </div>
 
   <nav class="app-nav">
     <div class="app-nav-item active" onclick="switchTab('jar')">
-      <span class="nav-icon">🫙</span><span class="nav-label">罐头</span>
+      <span class="nav-icon">🫙</span><span class="nav-label">Jar</span>
     </div>
-    <div class="app-nav-item" onclick="switchTab('album')">
-      <span class="nav-icon">🔒</span><span class="nav-label">相册</span>
+    <div class="app-nav-item" onclick="switchTab('sparks')">
+      <span class="nav-icon">✨</span><span class="nav-label">Sparks</span>
     </div>
-    <div class="app-nav-item" onclick="switchTab('whisper')">
-      <span class="nav-icon">💌</span><span class="nav-label">悄悄话</span>
-    </div>
-    <div class="app-nav-item" onclick="switchTab('timeline')">
-      <span class="nav-icon">📖</span><span class="nav-label">时间线</span>
+    <div class="app-nav-item" onclick="switchTab('whispers')">
+      <span class="nav-icon">💌</span><span class="nav-label">Whispers</span>
     </div>
   </nav>
 </div>
 
-<!-- Modal -->
-<div id="modal-overlay" class="hidden" onclick="closeModalBg(event)">
+<!-- MODAL -->
+<div id="modal-overlay" class="hidden" onclick="closeBg(event)">
   <div class="modal-box" id="modal-box"></div>
 </div>
 
-<!-- Floating hearts -->
+<!-- FLOATING HEARTS -->
 <div id="hearts-layer"></div>
 
-<!-- Toast -->
+<!-- TOAST -->
 <div id="toast"></div>
 
-<!-- Hidden file input -->
-<input type="file" id="file-input" accept="image/*" style="display:none" onchange="onFileSelected(event)">
+<!-- FILE INPUT -->
+<input type="file" id="file-input" accept="image/*" style="display:none" onchange="onFile(event)">
 
 <script>
-// =============================================
-// FIREBASE CONFIG
-// 把下面这段替换成你从 Firebase 控制台复制的配置
-// =============================================
+// ── FIREBASE CONFIG ──────────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyDXhv4d5_E6VfUz671aEixfmPMMGmxRlQk",
   authDomain:        "heartjar-ef1ab.firebaseapp.com",
@@ -530,35 +306,30 @@ const firebaseConfig = {
   appId:             "1:368988837425:web:ad39086b731bdca915e710"
 };
 
-// =============================================
-// CONSTANTS
-// =============================================
-const ROOM_ID     = '251027';
-const UNLOCK_CODE = '251027';
+// ── CONSTANTS ────────────────────────────────────
+const ROOM_ID     = '20251027';
+const UNLOCK_CODE = '20251027';
 const EASTER_EGGS = {
-  13:  '第13颗心 💗 一周的每天都在想你',
-  14:  '第14颗心 💗 情人节的悄悄心意',
-  52:  '第52颗心 💗 整整一年的每个星期',
-  99:  '第99颗心 💗 九九归一，99次想起你',
-  100: '🎉 100颗心！你们真的很甜'
+  7:   '7 hearts 💗 every day this week, thinking of you',
+  14:  '14 hearts 💗 two weeks of tiny moments',
+  30:  '30 hearts 💗 a whole month of us',
+  52:  '52 hearts 💗 every week of a year',
+  99:  '99 hearts 💗 99 times I thought of you',
+  100: '🎉 100 hearts! this is something real'
 };
 
-// =============================================
-// STATE
-// =============================================
+// ── STATE ────────────────────────────────────────
 const S = {
   userName: '',
   heartCount: 0,
-  albums: [], whispers: [], timeline: [],
-  unsubs: [],
-  pendingFile: null
+  sparks: [],
+  whispers: [],
+  unsubs: []
 };
 
 let db;
 
-// =============================================
-// BOOT
-// =============================================
+// ── INIT ─────────────────────────────────────────
 firebase.initializeApp(firebaseConfig);
 db = firebase.firestore();
 
@@ -566,11 +337,10 @@ window.addEventListener('load', () => {
   S.userName = localStorage.getItem('hj_user') || '';
   showScreen('disguise');
 
-  // Disguise unlock: type UNLOCK_CODE in the search bar
   document.getElementById('work-search').addEventListener('input', e => {
     if (e.target.value === UNLOCK_CODE) {
       e.target.value = '';
-      e.target.placeholder = '进入中...';
+      e.target.placeholder = 'Loading...';
       setTimeout(() => {
         e.target.placeholder = '搜索项目/任务...';
         S.userName ? enterApp() : showScreen('login');
@@ -583,9 +353,7 @@ window.addEventListener('load', () => {
   });
 });
 
-// =============================================
-// SCREENS
-// =============================================
+// ── SCREENS ──────────────────────────────────────
 function showScreen(name) {
   ['disguise', 'login', 'app'].forEach(n =>
     document.getElementById('screen-' + n).classList.toggle('hidden', n !== name)
@@ -594,14 +362,14 @@ function showScreen(name) {
 
 function doLogin() {
   const n = document.getElementById('login-name').value.trim();
-  if (!n) { toast('请输入你的昵称'); return; }
+  if (!n) { toast('Please enter your name'); return; }
   S.userName = n;
   localStorage.setItem('hj_user', n);
   enterApp();
 }
 
 function doLogout() {
-  S.unsubs.forEach(fn => fn());
+  S.unsubs.forEach(f => f());
   S.unsubs = [];
   localStorage.removeItem('hj_user');
   S.userName = '';
@@ -610,29 +378,22 @@ function doLogout() {
 
 async function enterApp() {
   showScreen('app');
-  document.getElementById('app-user-label').textContent = 'Hi, ' + S.userName;
+  document.getElementById('app-user').textContent = 'Hi, ' + S.userName;
 
-  // Ensure room doc exists
-  const roomRef = db.collection('rooms').doc(ROOM_ID);
-  const snap = await roomRef.get();
+  const room = db.collection('rooms').doc(ROOM_ID);
+  const snap = await room.get();
   if (!snap.exists) {
-    await roomRef.set({
-      heartCount: 0,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    await room.set({ heartCount: 0, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
   }
 
-  attachListeners();
+  listen();
   switchTab('jar');
 }
 
-// =============================================
-// FIRESTORE REAL-TIME LISTENERS
-// =============================================
-function attachListeners() {
+// ── LISTENERS ────────────────────────────────────
+function listen() {
   const r = db.collection('rooms').doc(ROOM_ID);
 
-  // Heart count
   S.unsubs.push(r.onSnapshot(doc => {
     if (!doc.exists) return;
     const prev = S.heartCount;
@@ -641,7 +402,14 @@ function attachListeners() {
     renderJar();
   }));
 
-  // Whispers
+  S.unsubs.push(
+    r.collection('sparks').orderBy('timestamp', 'desc').limit(30)
+     .onSnapshot(snap => {
+       S.sparks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+       renderSparks();
+     })
+  );
+
   S.unsubs.push(
     r.collection('whispers').orderBy('timestamp', 'desc').limit(50)
      .onSnapshot(snap => {
@@ -649,155 +417,83 @@ function attachListeners() {
        renderWhispers();
      })
   );
-
-  // Albums
-  S.unsubs.push(
-    r.collection('albums').orderBy('timestamp', 'desc')
-     .onSnapshot(snap => {
-       S.albums = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-       renderAlbum();
-     })
-  );
-
-  // Timeline
-  S.unsubs.push(
-    r.collection('timeline').orderBy('timestamp', 'desc').limit(60)
-     .onSnapshot(snap => {
-       S.timeline = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-       renderTimeline();
-     })
-  );
 }
 
-// =============================================
-// ADD HEART — shared helper
-// =============================================
-async function addHeart(type, extra = {}) {
-  const r = db.collection('rooms').doc(ROOM_ID);
-  await r.update({ heartCount: firebase.firestore.FieldValue.increment(1) });
-  await r.collection('timeline').add({
-    type,
-    author: S.userName,
-    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-    ...extra
+// ── ADD HEART ────────────────────────────────────
+async function addHeart() {
+  await db.collection('rooms').doc(ROOM_ID).update({
+    heartCount: firebase.firestore.FieldValue.increment(1)
   });
 }
 
-// =============================================
-// JAR TAB
-// =============================================
+// ── JAR ──────────────────────────────────────────
 function renderJar() {
   const c = S.heartCount;
-  document.getElementById('jar-count').textContent = c;
+  document.getElementById('jar-num').textContent = c;
 
-  // Fill jar (max 28 hearts shown)
-  const shown = Math.min(c, 28);
-  const pct   = Math.min(shown / 28, 1);
+  const shown = Math.min(c, 30);
   const fill  = document.getElementById('jar-fill');
-  fill.style.height = (pct * 100) + '%';
-  fill.innerHTML    = Array(shown).fill('<span class="jar-heart-item">💗</span>').join('');
+  fill.style.height = Math.min(shown / 30 * 100, 100) + '%';
+  fill.innerHTML    = Array(shown).fill('<span class="jh">💗</span>').join('');
 
-  // Easter egg
   const egg = document.getElementById('jar-egg');
   if (EASTER_EGGS[c]) { egg.textContent = EASTER_EGGS[c]; egg.style.display = 'block'; }
   else egg.style.display = 'none';
 }
 
-// =============================================
-// ALBUM TAB
-// =============================================
-function renderAlbum() {
-  const el = document.getElementById('album-list');
-  if (!S.albums.length) {
-    el.innerHTML = '<div class="empty"><span class="empty-icon">🖼️</span>还没有秘密相册，来添加第一个</div>';
+// ── SPARKS ───────────────────────────────────────
+function renderSparks() {
+  const el = document.getElementById('sparks-list');
+  if (!S.sparks.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>';
     return;
   }
-  el.innerHTML = S.albums.map(item => {
-    const mine   = item.uploader === S.userName;
-    const locked = !item.isUnlocked && !mine;
-    const taskTxt = item.taskType === 'wantYou'
-      ? '回复包含"想你"的话'
-      : '写一段告白（20字以上）';
-    return `
-    <div class="album-card">
-      <div class="album-img-wrap">
-        <img class="album-img ${locked ? 'blurred' : ''}" src="${item.imageUrl}" loading="lazy">
-        ${locked ? `
-          <div class="album-overlay">
-            <div class="album-lock-icon">🔐</div>
-            <div class="album-lock-text">完成任务才能解锁</div>
-          </div>` : ''}
+  el.innerHTML = S.sparks.map(s => `
+    <div class="spark-card">
+      <img class="spark-img" src="${s.imageData}" loading="lazy">
+      <div class="spark-body">
+        ${s.caption ? `<div class="spark-caption">${esc(s.caption)}</div>` : ''}
+        <div class="spark-meta">${fmtTime(s.timestamp)} · ${esc(s.author)}</div>
       </div>
-      <div class="album-body">
-        ${item.isUnlocked ? `<div class="album-unlocked-tag">✅ 已解锁 by ${esc(item.unlockedBy)}</div>` : ''}
-        ${item.caption ? `<div class="album-caption">${esc(item.caption)}</div>` : ''}
-        ${locked ? `
-          <div class="album-task-box">
-            <div class="album-task-title">🔑 解锁任务</div>
-            <div>${taskTxt}</div>
-          </div>
-          <input class="unlock-input" id="ui-${item.id}" placeholder="在这里完成任务...">
-          <button class="unlock-btn" onclick="unlockAlbum('${item.id}','${item.taskType}')">提交解锁 💗</button>
-        ` : ''}
-        <div class="album-meta" style="margin-top:8px">
-          ${fmtTime(item.timestamp)} · by ${esc(item.uploader)}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
 
-let _modalFile = null;
-let _taskType  = 'wantYou';
+let _sparkFile = null;
 
-function openAlbumModal() {
-  _modalFile = null;
-  _taskType  = 'wantYou';
+function openSparkModal() {
+  _sparkFile = null;
   document.getElementById('modal-box').innerHTML = `
-    <div class="modal-title">🔒 添加秘密相册</div>
-    <div class="modal-label">选择图片</div>
-    <div class="modal-file-area" onclick="document.getElementById('file-input').click()">
-      <span class="modal-file-icon">📷</span>
-      <span>点击选择图片</span>
+    <div class="modal-title">✨ Add a Spark</div>
+    <div class="modal-label">Photo</div>
+    <div class="file-drop" id="file-drop" onclick="document.getElementById('file-input').click()">
+      <span class="file-drop-icon">📷</span>
+      <span>tap to choose a photo</span>
     </div>
     <img id="m-preview" class="modal-preview">
-    <div class="modal-label">写点什么</div>
-    <textarea id="m-caption" class="modal-textarea"
-              placeholder="写下这张图的故事..." rows="3" maxlength="200"></textarea>
-    <div class="modal-label">对方的解锁任务</div>
-    <div class="task-options">
-      <div class="task-opt selected" id="to-wantYou" onclick="selTask('wantYou')">💬 回复"想你"</div>
-      <div class="task-opt" id="to-confession" onclick="selTask('confession')">💝 写段告白</div>
-    </div>
+    <div class="modal-label">Caption <span style="color:var(--text-3);font-weight:400">(optional)</span></div>
+    <textarea id="m-caption" class="modal-textarea" placeholder="what made you feel this way..." rows="3" maxlength="200"></textarea>
     <div class="modal-actions">
-      <button class="modal-cancel" onclick="closeModal()">取消</button>
-      <button class="modal-submit" onclick="submitAlbum()">上传 🔒</button>
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-submit" onclick="submitSpark()">Save +💗</button>
     </div>`;
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
-function selTask(t) {
-  _taskType = t;
-  document.getElementById('to-wantYou').classList.toggle('selected', t === 'wantYou');
-  document.getElementById('to-confession').classList.toggle('selected', t === 'confession');
-}
-
-function onFileSelected(e) {
+function onFile(e) {
   const f = e.target.files[0];
   if (!f) return;
-  _modalFile = f;
+  _sparkFile = f;
   const reader = new FileReader();
   reader.onload = ev => {
     const p = document.getElementById('m-preview');
     if (p) { p.src = ev.target.result; p.style.display = 'block'; }
-    const area = document.querySelector('.modal-file-area');
-    if (area) area.style.display = 'none';
+    const d = document.getElementById('file-drop');
+    if (d) d.style.display = 'none';
   };
   reader.readAsDataURL(f);
   e.target.value = '';
 }
 
-// Compress image to base64 (max 800px, quality 0.75) to stay within Firestore limits
 function compressImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -809,79 +505,58 @@ function compressImage(file) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
         else       { w = Math.round(w * MAX / h); h = MAX; }
       }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.75));
+      resolve(c.toDataURL('image/jpeg', 0.75));
     };
     img.onerror = reject;
     img.src = url;
   });
 }
 
-async function submitAlbum() {
-  if (!_modalFile) { toast('请先选择一张图片'); return; }
+async function submitSpark() {
+  if (!_sparkFile) { toast('Please choose a photo first'); return; }
   const caption = (document.getElementById('m-caption')?.value || '').trim();
-  toast('处理中...');
+  toast('Saving...');
   try {
-    const imageData = await compressImage(_modalFile);
-    await db.collection('rooms').doc(ROOM_ID).collection('albums').add({
-      uploader: S.userName,
-      imageUrl: imageData,
+    const imageData = await compressImage(_sparkFile);
+    await db.collection('rooms').doc(ROOM_ID).collection('sparks').add({
+      author: S.userName,
+      imageData,
       caption,
-      taskType: _taskType,
-      isUnlocked: false,
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
-    _modalFile = null;
+    await addHeart();
+    floatHearts(2);
+    _sparkFile = null;
     closeModal();
-    toast('上传成功 🔒');
+    toast('Spark saved +1 💗');
   } catch (err) {
     console.error(err);
-    toast('上传失败，请重试');
+    toast('Failed, please try again');
   }
 }
 
-async function unlockAlbum(id, taskType) {
-  const input = document.getElementById('ui-' + id);
-  const val   = input ? input.value.trim() : '';
-  if (taskType === 'wantYou' && !val.includes('想你')) {
-    toast('请回复包含"想你"的内容 💗'); return;
-  }
-  if (taskType === 'confession' && val.length < 20) {
-    toast('告白至少需要20个字哦 💝'); return;
-  }
-  await db.collection('rooms').doc(ROOM_ID).collection('albums').doc(id).update({
-    isUnlocked: true,
-    unlockedBy: S.userName,
-    unlockedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-  await addHeart('album', { note: S.userName + ' 解锁了秘密相册' });
-  floatHearts(3);
-  toast('解锁成功！+1 💗');
-}
-
-// =============================================
-// WHISPER TAB
-// =============================================
+// ── WHISPERS ─────────────────────────────────────
 function renderWhispers() {
-  const el = document.getElementById('whisper-list');
+  const el = document.getElementById('whispers-list');
   if (!S.whispers.length) {
-    el.innerHTML = '<div class="empty"><span class="empty-icon">💌</span>还没有悄悄话，先发一条吧</div>';
+    el.innerHTML = '<div class="empty"><span class="empty-icon">💌</span>No whispers yet.</div>';
     return;
   }
   el.innerHTML = S.whispers.map(w => {
     const mine = w.from === S.userName;
+    const read = w.isRead;
     return `
-    <div class="whisper-item">
-      <div class="w-heart ${w.isRead ? '' : 'unread'}"
-           onclick="readWhisper('${w.id}',${mine})">${w.isRead ? '💗' : '🤍'}</div>
-      <div class="w-body">
-        <div class="w-from">${esc(w.from)}${mine ? ' · 你发的' : ''}</div>
-        <div class="w-text">${esc(w.content)}</div>
-        ${!w.isRead && !mine ? '<div class="w-hint">轻触爱心表示已读 +1💗</div>' : ''}
-        <div class="w-time">${fmtTime(w.timestamp)}</div>
+    <div class="whisper-card">
+      <div class="wh-btn" onclick="readWhisper('${w.id}',${mine})">${read ? '💗' : '🤍'}</div>
+      <div class="wh-body">
+        <div class="wh-from">${esc(w.from)}${mine ? ' · you' : ''}</div>
+        <div class="wh-text">${esc(w.content)}</div>
+        ${!read && !mine ? '<div class="wh-hint">tap ♡ to mark as read +1💗</div>' : ''}
+        <div class="wh-time">${fmtTime(w.timestamp)}</div>
       </div>
     </div>`;
   }).join('');
@@ -889,134 +564,91 @@ function renderWhispers() {
 
 async function sendWhisper() {
   const val = document.getElementById('whisper-input').value.trim();
-  if (!val) { toast('说点什么吧 💌'); return; }
+  if (!val) { toast('Say something first 💌'); return; }
   await db.collection('rooms').doc(ROOM_ID).collection('whispers').add({
     from: S.userName,
     content: val,
     isRead: false,
     timestamp: firebase.firestore.FieldValue.serverTimestamp()
   });
+  await addHeart();
+  floatHearts(1);
   document.getElementById('whisper-input').value = '';
-  toast('悄悄话已发送 💌');
+  toast('Whisper sent +1 💗');
 }
 
 async function readWhisper(id, mine) {
-  if (mine) { toast('这是你发的悄悄话'); return; }
+  if (mine) { toast("That's your own whisper"); return; }
   const w = S.whispers.find(x => x.id === id);
   if (!w || w.isRead) return;
   await db.collection('rooms').doc(ROOM_ID).collection('whispers').doc(id).update({
     isRead: true,
     readAt: firebase.firestore.FieldValue.serverTimestamp()
   });
-  await addHeart('whisper', { note: S.userName + ' 已读了悄悄话' });
+  await addHeart();
   floatHearts(2);
-  toast('已读 +1 💗');
+  toast('Read +1 💗');
 }
 
-// =============================================
-// TIMELINE TAB
-// =============================================
-function renderTimeline() {
-  const el = document.getElementById('timeline-list');
-  if (!S.timeline.length) {
-    el.innerHTML = '<div class="empty"><span class="empty-icon">📖</span>你们的故事从这里开始</div>';
-    return;
-  }
-  const INFO = {
-    album:   { icon: '🔒', label: '解锁秘密相册', cls: 't-album'   },
-    whisper: { icon: '💌', label: '悄悄话已读',   cls: 't-whisper' },
-    heart:   { icon: '💗', label: '心动时刻',     cls: 't-heart'   }
-  };
-  el.innerHTML = S.timeline.map((item, i) => {
-    const info = INFO[item.type] || INFO.heart;
-    const last = i === S.timeline.length - 1;
-    return `
-    <div class="tl-item">
-      <div class="tl-left">
-        <div class="tl-dot ${info.cls}">${info.icon}</div>
-        ${!last ? '<div class="tl-line"></div>' : ''}
-      </div>
-      <div class="tl-card">
-        <div class="tl-type">${info.label}</div>
-        <div class="tl-text">${esc(item.note || item.content || '')}</div>
-        ${item.imageUrl ? `<img class="tl-img" src="${item.imageUrl}" loading="lazy">` : ''}
-        <div class="tl-footer">${fmtTime(item.timestamp)} · ${esc(item.author || '')}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// =============================================
-// TAB SWITCHING
-// =============================================
+// ── TABS ─────────────────────────────────────────
 function switchTab(tab) {
-  ['jar', 'album', 'whisper', 'timeline'].forEach(t => {
-    document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
-  });
-  document.querySelectorAll('.app-nav-item').forEach((el, i) => {
-    el.classList.toggle('active', ['jar', 'album', 'whisper', 'timeline'][i] === tab);
-  });
+  ['jar', 'sparks', 'whispers'].forEach(t =>
+    document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab)
+  );
+  document.querySelectorAll('.app-nav-item').forEach((el, i) =>
+    el.classList.toggle('active', ['jar', 'sparks', 'whispers'][i] === tab)
+  );
 }
 
-// =============================================
-// MODAL
-// =============================================
+// ── MODAL ────────────────────────────────────────
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
-  _modalFile = null;
+  _sparkFile = null;
 }
-function closeModalBg(e) {
+function closeBg(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 }
 
-// =============================================
-// FLOATING HEARTS ANIMATION
-// =============================================
+// ── ANIMATION ────────────────────────────────────
 function floatHearts(n = 1) {
   const layer = document.getElementById('hearts-layer');
   for (let i = 0; i < n; i++) {
     setTimeout(() => {
       const el = document.createElement('div');
-      el.className = 'fheart';
-      const x  = 20 + Math.random() * 60;
-      const dx = (Math.random() - 0.5) * 80;
-      el.style.cssText = `left:${x}%;bottom:80px;--dx:${dx}px`;
+      el.className = 'fh';
+      el.style.cssText = `left:${20 + Math.random() * 60}%;bottom:80px;--dx:${(Math.random()-.5)*80}px`;
       el.textContent = '💗';
       layer.appendChild(el);
       setTimeout(() => el.remove(), 1900);
-    }, i * 180);
+    }, i * 200);
   }
 }
 
-// =============================================
-// TOAST
-// =============================================
-let _toastT;
+// ── TOAST ────────────────────────────────────────
+let _tt;
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.classList.add('show');
-  clearTimeout(_toastT);
-  _toastT = setTimeout(() => el.classList.remove('show'), 2200);
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-// =============================================
-// UTILS
-// =============================================
+// ── UTILS ────────────────────────────────────────
 function fmtTime(ts) {
   if (!ts) return '';
-  const d    = ts.toDate ? ts.toDate() : new Date(ts);
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
   const diff = Date.now() - d.getTime();
-  if (diff < 60000)    return '刚刚';
-  if (diff < 3600000)  return Math.floor(diff / 60000) + '分钟前';
-  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
+  if (diff < 60000)    return 'just now';
+  if (diff < 3600000)  return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return `${d.getMonth()+1}/${d.getDate()}`;
 }
 
 function esc(s) {
   return String(s || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
 </body>
