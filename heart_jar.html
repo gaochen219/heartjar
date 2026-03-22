@@ -7,8 +7,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Dashboard">
   <title>Dashboard</title>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   :root {
@@ -296,18 +294,8 @@
 <input type="file" id="file-input" accept="image/*" style="display:none" onchange="onFile(event)">
 
 <script>
-// ── FIREBASE CONFIG ──────────────────────────────
-const firebaseConfig = {
-  apiKey:            "AIzaSyDXhv4d5_E6VfUz671aEixfmPMMGmxRlQk",
-  authDomain:        "heartjar-ef1ab.firebaseapp.com",
-  projectId:         "heartjar-ef1ab",
-  storageBucket:     "heartjar-ef1ab.firebasestorage.app",
-  messagingSenderId: "368988837425",
-  appId:             "1:368988837425:web:ad39086b731bdca915e710"
-};
-
-// ── CONSTANTS ────────────────────────────────────
-const ROOM_ID     = '20251027';
+// ── CONFIG ────────────────────────────────────────
+const API         = 'https://heartjar.gaochen219.workers.dev';
 const UNLOCK_CODE = '20251027';
 const EASTER_EGGS = {
   7:   '7 hearts 💗 every day this week, thinking of you',
@@ -318,36 +306,28 @@ const EASTER_EGGS = {
   100: '🎉 100 hearts! this is something real'
 };
 
-// ── STATE ────────────────────────────────────────
+// ── STATE ─────────────────────────────────────────
 const S = {
   userName: '',
   heartCount: 0,
   sparks: [],
   whispers: [],
-  unsubs: []
+  pollTimer: null
 };
 
-let db;
-
-// ── INIT ─────────────────────────────────────────
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-} catch(e) {
-  console.error('Firebase init error:', e);
-}
-
-// Cancel token to handle logout-while-loading race condition
 let _sessionId = 0;
 
-// Timeout wrapper: rejects if promise takes longer than ms
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
-  ]);
+// ── API HELPER ────────────────────────────────────
+async function api(path, body) {
+  const opts = body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : { method: 'GET' };
+  const res = await fetch(API + path, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
 }
 
+// ── BOOT ──────────────────────────────────────────
 window.addEventListener('load', () => {
   S.userName = localStorage.getItem('hj_user') || '';
   showScreen('disguise');
@@ -358,7 +338,6 @@ window.addEventListener('load', () => {
       e.target.placeholder = 'Loading...';
       setTimeout(() => {
         e.target.placeholder = '搜索项目/任务...';
-        if (!db) { toast('Connection error — check your internet'); return; }
         S.userName ? enterApp() : showScreen('login');
       }, 500);
     }
@@ -369,7 +348,7 @@ window.addEventListener('load', () => {
   });
 });
 
-// ── SCREENS ──────────────────────────────────────
+// ── SCREENS ───────────────────────────────────────
 function showScreen(name) {
   ['disguise', 'login', 'app'].forEach(n =>
     document.getElementById('screen-' + n).classList.toggle('hidden', n !== name)
@@ -385,99 +364,74 @@ function doLogin() {
 }
 
 function doLogout() {
-  _sessionId++;            // invalidate any in-flight enterApp
-  try { S.unsubs.forEach(f => f()); } catch(e) {}
-  S.unsubs = [];
+  _sessionId++;
+  stopPolling();
   localStorage.removeItem('hj_user');
   S.userName = '';
+  S.heartCount = 0;
+  S.sparks = [];
+  S.whispers = [];
   showScreen('disguise');
 }
 
-async function enterApp() {
-  const mySession = ++_sessionId;
+function enterApp() {
+  _sessionId++;
   showScreen('app');
   document.getElementById('app-user').textContent = 'Hi, ' + S.userName;
-
-  try {
-    const room = db.collection('rooms').doc(ROOM_ID);
-    const snap = await withTimeout(room.get(), 8000);
-    if (mySession !== _sessionId) return; // logged out while loading
-    if (!snap.exists) {
-      await withTimeout(
-        room.set({ heartCount: 0, createdAt: firebase.firestore.FieldValue.serverTimestamp() }),
-        8000
-      );
-    }
-  } catch(e) {
-    if (mySession !== _sessionId) return;
-    console.warn('Room init skipped (offline?):', e.message);
-    // Continue anyway — listeners will sync when connection recovers
-  }
-
-  if (mySession !== _sessionId) return;
-  listen();
   switchTab('jar');
+  startPolling();
+  loadSparks();
 }
 
-// ── LISTENERS ────────────────────────────────────
-function listen() {
-  const r = db.collection('rooms').doc(ROOM_ID);
-
-  S.unsubs.push(r.onSnapshot(doc => {
-    if (!doc.exists) return;
-    const prev = S.heartCount;
-    S.heartCount = doc.data().heartCount || 0;
-    if (S.heartCount > prev && prev > 0) floatHearts(1);
-    renderJar();
-  }));
-
-  S.unsubs.push(
-    r.collection('sparks').orderBy('timestamp', 'desc').limit(30)
-     .onSnapshot(snap => {
-       S.sparks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-       renderSparks();
-     })
-  );
-
-  S.unsubs.push(
-    r.collection('whispers').orderBy('timestamp', 'desc').limit(50)
-     .onSnapshot(snap => {
-       S.whispers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-       renderWhispers();
-     })
-  );
+// ── POLLING ───────────────────────────────────────
+function startPolling() {
+  stopPolling();
+  pollOnce();
+  S.pollTimer = setInterval(pollOnce, 3000);
 }
 
-// ── ADD HEART ────────────────────────────────────
-async function addHeart() {
+function stopPolling() {
+  if (S.pollTimer) { clearInterval(S.pollTimer); S.pollTimer = null; }
+}
+
+async function pollOnce() {
   try {
-    await withTimeout(
-      db.collection('rooms').doc(ROOM_ID).update({
-        heartCount: firebase.firestore.FieldValue.increment(1)
-      }),
-      8000
-    );
+    const data = await api('/state');
+    const prev = S.heartCount;
+    S.heartCount = data.heartCount || 0;
+    if (S.heartCount > prev && prev > 0) floatHearts(1);
+    S.whispers = data.whispers || [];
+    renderJar();
+    renderWhispers();
   } catch(e) {
-    console.warn('addHeart failed:', e.message);
+    // silent — will retry in 3s
   }
 }
 
-// ── JAR ──────────────────────────────────────────
+async function loadSparks() {
+  try {
+    const data = await api('/sparks');
+    S.sparks = data.sparks || [];
+    renderSparks();
+  } catch(e) {
+    console.warn('loadSparks failed:', e.message);
+  }
+}
+
+// ── JAR ───────────────────────────────────────────
 function renderJar() {
   const c = S.heartCount;
   document.getElementById('jar-num').textContent = c;
-
   const shown = Math.min(c, 30);
   const fill  = document.getElementById('jar-fill');
   fill.style.height = Math.min(shown / 30 * 100, 100) + '%';
   fill.innerHTML    = Array(shown).fill('<span class="jh">💗</span>').join('');
-
   const egg = document.getElementById('jar-egg');
   if (EASTER_EGGS[c]) { egg.textContent = EASTER_EGGS[c]; egg.style.display = 'block'; }
   else egg.style.display = 'none';
 }
 
-// ── SPARKS ───────────────────────────────────────
+// ── SPARKS ────────────────────────────────────────
 function renderSparks() {
   const el = document.getElementById('sparks-list');
   if (!S.sparks.length) {
@@ -558,27 +512,19 @@ async function submitSpark() {
   toast('Saving...');
   try {
     const imageData = await compressImage(_sparkFile);
-    await withTimeout(
-      db.collection('rooms').doc(ROOM_ID).collection('sparks').add({
-        author: S.userName,
-        imageData,
-        caption,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      }),
-      10000
-    );
-    await addHeart();
-    floatHearts(2);
+    await api('/spark', { author: S.userName, imageData, caption });
     _sparkFile = null;
     closeModal();
+    floatHearts(2);
     toast('Spark saved +1 💗');
-  } catch (err) {
-    console.error(err);
+    pollOnce();
+    loadSparks();
+  } catch(err) {
     toast('Could not save — check connection');
   }
 }
 
-// ── WHISPERS ─────────────────────────────────────
+// ── WHISPERS ──────────────────────────────────────
 function renderWhispers() {
   const el = document.getElementById('whispers-list');
   if (!S.whispers.length) {
@@ -608,21 +554,12 @@ async function sendWhisper() {
   if (btn) btn.disabled = true;
   toast('Sending...');
   try {
-    await withTimeout(
-      db.collection('rooms').doc(ROOM_ID).collection('whispers').add({
-        from: S.userName,
-        content: val,
-        isRead: false,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      }),
-      8000
-    );
-    await addHeart();
-    floatHearts(1);
+    await api('/whisper', { from: S.userName, content: val });
     document.getElementById('whisper-input').value = '';
+    floatHearts(1);
     toast('Whisper sent +1 💗');
+    pollOnce();
   } catch(err) {
-    console.error('sendWhisper error:', err);
     toast('Could not send — check connection');
   } finally {
     if (btn) btn.disabled = false;
@@ -634,23 +571,16 @@ async function readWhisper(id, mine) {
   const w = S.whispers.find(x => x.id === id);
   if (!w || w.isRead) return;
   try {
-    await withTimeout(
-      db.collection('rooms').doc(ROOM_ID).collection('whispers').doc(id).update({
-        isRead: true,
-        readAt: firebase.firestore.FieldValue.serverTimestamp()
-      }),
-      8000
-    );
-    await addHeart();
+    await api('/whisper/read', { id });
     floatHearts(2);
     toast('Read +1 💗');
+    pollOnce();
   } catch(err) {
-    console.error('readWhisper error:', err);
     toast('Could not update — check connection');
   }
 }
 
-// ── TABS ─────────────────────────────────────────
+// ── TABS ──────────────────────────────────────────
 function switchTab(tab) {
   ['jar', 'sparks', 'whispers'].forEach(t =>
     document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab)
@@ -658,9 +588,10 @@ function switchTab(tab) {
   document.querySelectorAll('.app-nav-item').forEach((el, i) =>
     el.classList.toggle('active', ['jar', 'sparks', 'whispers'][i] === tab)
   );
+  if (tab === 'sparks') loadSparks();
 }
 
-// ── MODAL ────────────────────────────────────────
+// ── MODAL ─────────────────────────────────────────
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
   _sparkFile = null;
@@ -669,7 +600,7 @@ function closeBg(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 }
 
-// ── ANIMATION ────────────────────────────────────
+// ── ANIMATION ─────────────────────────────────────
 function floatHearts(n = 1) {
   const layer = document.getElementById('hearts-layer');
   for (let i = 0; i < n; i++) {
@@ -684,7 +615,7 @@ function floatHearts(n = 1) {
   }
 }
 
-// ── TOAST ────────────────────────────────────────
+// ── TOAST ─────────────────────────────────────────
 let _tt;
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -694,10 +625,10 @@ function toast(msg) {
   _tt = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-// ── UTILS ────────────────────────────────────────
+// ── UTILS ─────────────────────────────────────────
 function fmtTime(ts) {
   if (!ts) return '';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const d = new Date(ts);
   const diff = Date.now() - d.getTime();
   if (diff < 60000)    return 'just now';
   if (diff < 3600000)  return Math.floor(diff / 60000) + 'm ago';
