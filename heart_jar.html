@@ -295,7 +295,7 @@
 
 <script>
 // ── CONFIG ────────────────────────────────────────
-const API         = 'https://heartjar.gaochen219.workers.dev';
+const API         = 'http://heartjar-api.fcv3.1726100401118357.cn-shanghai.fc.devsapp.net';
 const UNLOCK_CODE = '20251027';
 const EASTER_EGGS = {
   7:   '7 hearts 💗 every day this week, thinking of you',
@@ -319,12 +319,19 @@ let _sessionId = 0;
 
 // ── API HELPER ────────────────────────────────────
 async function api(path, body) {
-  const opts = body
-    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-    : { method: 'GET' };
-  const res = await fetch(API + path, opts);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    // Use text/plain to avoid CORS preflight and bypass GFW JSON-POST blocking
+    const opts = body
+      ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body), signal: ctrl.signal }
+      : { method: 'GET', signal: ctrl.signal };
+    const res = await fetch(API + path, opts);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ── BOOT ──────────────────────────────────────────
