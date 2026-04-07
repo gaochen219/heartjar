@@ -1,139 +1,651 @@
-const OSS = require('ali-oss');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Dashboard">
+  <title>Dashboard</title>
+  <style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root {
+    --pink:#ff6b9d; --pink-light:#ffb3d1; --pink-pale:#fff0f6; --pink-bg:#fff8fa;
+    --text:#2d2d2d; --text-2:#666; --text-3:#aaa; --border:#f5dce8; --white:#fff;
+    --work-bg:#f0f2f5; --work-blue:#1677ff; --work-green:#52c41a; --work-orange:#fa8c16;
+    --work-border:#e8e8e8; --work-text:#262626; --work-text-3:#bfbfbf;
+  }
+  html, body { height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif; }
+  .screen { position:fixed; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .screen.hidden { display:none !important; }
 
-// 从环境变量读取配置
-const client = new OSS({
-  region: process.env.OSS_REGION,
-  accessKeyId: process.env.ACCESS_KEY_ID,
-  accessKeySecret: process.env.ACCESS_KEY_SECRET,
-  bucket: process.env.OSS_BUCKET
+  /* ---- DISGUISE ---- */
+  #screen-disguise { background:var(--work-bg); }
+  .w-header { background:#fff; padding:env(safe-area-inset-top,44px) 16px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--work-border); position:sticky; top:0; z-index:10; }
+  .w-title { font-size:18px; font-weight:600; color:var(--work-text); }
+  .w-avatar { width:32px; height:32px; background:var(--work-blue); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:600; }
+  .w-search-wrap { padding:12px 16px; background:#fff; border-bottom:1px solid var(--work-border); }
+  .w-search { display:flex; align-items:center; background:var(--work-bg); border-radius:8px; padding:8px 12px; gap:8px; }
+  .w-search input { flex:1; border:none; background:none; outline:none; font-size:14px; color:var(--work-text); }
+  .w-search input::placeholder { color:var(--work-text-3); }
+  .w-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:16px; }
+  .w-stat { background:#fff; border-radius:10px; padding:14px 12px; text-align:center; }
+  .w-stat-num { font-size:28px; font-weight:700; }
+  .w-stat-label { font-size:11px; color:var(--work-text-3); margin-top:4px; }
+  .w-stat.blue .w-stat-num { color:var(--work-blue); }
+  .w-stat.green .w-stat-num { color:var(--work-green); }
+  .w-stat.orange .w-stat-num { color:var(--work-orange); }
+  .w-section { padding:0 16px 100px; }
+  .w-section-title { font-size:13px; color:#595959; margin-bottom:10px; font-weight:500; }
+  .w-card { background:#fff; border-radius:10px; padding:14px; margin-bottom:10px; }
+  .w-card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .w-card-name { font-size:14px; font-weight:500; color:var(--work-text); flex:1; }
+  .w-tag { font-size:11px; padding:2px 8px; border-radius:4px; margin-left:8px; white-space:nowrap; }
+  .w-tag.ongoing { background:#e6f4ff; color:var(--work-blue); }
+  .w-tag.done { background:#f6ffed; color:var(--work-green); }
+  .w-tag.pending { background:#fff7e6; color:var(--work-orange); }
+  .w-bar { height:5px; background:#f0f0f0; border-radius:3px; margin-bottom:8px; }
+  .w-bar-fill { height:100%; border-radius:3px; }
+  .w-meta { font-size:11px; color:var(--work-text-3); }
+  .w-nav { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--work-border); display:grid; grid-template-columns:repeat(4,1fr); padding-bottom:env(safe-area-inset-bottom,0); z-index:10; }
+  .w-nav-item { display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:3px; }
+  .w-nav-icon { font-size:20px; }
+  .w-nav-label { font-size:10px; color:var(--work-text-3); }
+  .w-nav-item.active .w-nav-label { color:var(--work-blue); }
+
+  /* ---- LOGIN ---- */
+  #screen-login { background:var(--pink-bg) !important; display:flex !important; flex-direction:column; align-items:center; justify-content:center; padding:40px 32px; }
+  .login-icon { font-size:72px; margin-bottom:8px; }
+  .login-title { font-size:26px; font-weight:700; color:var(--pink); margin-bottom:6px; }
+  .login-sub { font-size:13px; color:var(--text-3); margin-bottom:48px; text-align:center; line-height:1.6; }
+  .login-label { font-size:13px; color:var(--text-2); align-self:flex-start; margin-bottom:8px; }
+  .login-input { width:100%; padding:14px 16px; border:1.5px solid var(--border); border-radius:12px; font-size:16px; outline:none; color:var(--text); background:var(--white); margin-bottom:24px; font-family:inherit; }
+  .login-input:focus { border-color:var(--pink-light); }
+  .login-btn { width:100%; padding:16px; background:var(--pink); color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; }
+
+  /* ---- APP ---- */
+  #screen-app { background:var(--pink-bg) !important; display:flex !important; flex-direction:column; }
+  .app-header { background:var(--white); padding:env(safe-area-inset-top,44px) 16px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; flex-shrink:0; }
+  .app-title { font-size:16px; font-weight:600; color:var(--text); }
+  .app-user { font-size:12px; color:var(--text-3); margin-top:1px; }
+  .app-logout { font-size:13px; color:var(--text-3); background:none; border:none; cursor:pointer; padding:4px 8px; }
+  .app-main { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:72px; }
+  .tab { padding:16px; }
+  .tab.hidden { display:none !important; }
+  .app-nav { position:fixed; bottom:0; left:0; right:0; background:var(--white); border-top:1px solid var(--border); display:grid; grid-template-columns:repeat(3,1fr); padding-bottom:env(safe-area-inset-bottom,0); z-index:10; }
+  .app-nav-item { display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:2px; cursor:pointer; }
+  .nav-icon { font-size:24px; }
+  .nav-label { font-size:10px; color:var(--text-3); }
+  .app-nav-item.active .nav-label { color:var(--pink); font-weight:600; }
+
+  /* ---- JAR TAB ---- */
+  .jar-top { text-align:center; padding:24px 0 20px; }
+  .jar-count-row { display:flex; align-items:baseline; justify-content:center; gap:6px; margin-bottom:28px; }
+  .jar-num { font-size:64px; font-weight:700; color:var(--pink); line-height:1; }
+  .jar-unit { font-size:18px; color:var(--text-3); }
+  .jar-wrap { display:flex; flex-direction:column; align-items:center; margin-bottom:24px; }
+  .jar-neck { width:80px; height:16px; border:2.5px solid var(--pink-light); border-bottom:none; border-radius:8px 8px 0 0; background:var(--white); margin-bottom:-2px; z-index:1; }
+  .jar-body { width:150px; height:180px; border:2.5px solid var(--pink-light); border-radius:4px 4px 34px 34px; background:var(--white); overflow:hidden; position:relative; }
+  .jar-fill { position:absolute; bottom:0; left:0; right:0; background:var(--pink-pale); transition:height 0.7s ease; display:flex; flex-wrap:wrap; align-content:flex-end; padding:6px; gap:1px; }
+  .jh { font-size:17px; }
+  .jar-egg { background:var(--pink-pale); border:1px solid var(--pink-light); border-radius:12px; padding:12px 16px; margin:0 0 20px; font-size:14px; color:var(--pink); text-align:center; font-style:italic; line-height:1.5; }
+  .legend-item { display:flex; align-items:center; background:var(--white); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
+  .legend-icon { font-size:20px; margin-right:12px; }
+  .legend-desc { flex:1; font-size:13px; color:var(--text-2); }
+  .legend-pts { font-size:14px; font-weight:600; color:var(--pink); }
+
+  /* ---- SPARKS TAB ---- */
+  .add-btn { display:flex; align-items:center; justify-content:center; gap:8px; background:var(--pink); color:#fff; border:none; border-radius:12px; padding:14px; width:100%; font-size:15px; font-weight:600; margin-bottom:16px; cursor:pointer; }
+  .spark-card { background:var(--white); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+  .spark-img { width:100%; max-height:300px; object-fit:cover; display:block; }
+  .spark-body { padding:12px 14px 14px; }
+  .spark-caption { font-size:14px; color:var(--text); line-height:1.6; margin-bottom:8px; }
+  .spark-meta { font-size:11px; color:var(--text-3); }
+
+  /* ---- WHISPERS TAB ---- */
+  .compose { background:var(--white); border-radius:14px; padding:14px; margin-bottom:16px; }
+  .compose-label { font-size:13px; color:var(--text-2); margin-bottom:10px; }
+  .compose-input { width:100%; min-height:80px; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; outline:none; color:var(--text); resize:none; font-family:inherit; display:block; }
+  .compose-input:focus { border-color:var(--pink-light); }
+  .compose-footer { display:flex; justify-content:flex-end; margin-top:10px; }
+  .send-btn { background:var(--pink); color:#fff; border:none; border-radius:10px; padding:10px 24px; font-size:14px; font-weight:600; cursor:pointer; }
+  .whisper-card { background:var(--white); border-radius:14px; padding:14px; margin-bottom:8px; display:flex; gap:12px; align-items:flex-start; }
+  .wh-btn { font-size:28px; cursor:pointer; flex-shrink:0; transition:transform 0.15s; margin-top:2px; }
+  .wh-btn:active { transform:scale(1.35); }
+  .wh-body { flex:1; min-width:0; }
+  .wh-from { font-size:12px; color:var(--text-3); margin-bottom:4px; }
+  .wh-text { font-size:14px; color:var(--text); line-height:1.6; word-break:break-word; }
+  .wh-hint { font-size:11px; color:var(--pink); margin-top:5px; }
+  .wh-time { font-size:11px; color:var(--text-3); margin-top:6px; }
+
+  /* ---- MODAL ---- */
+  #modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:flex-end; }
+  #modal-overlay.hidden { display:none !important; }
+  .modal-box { background:var(--white); width:100%; border-radius:20px 20px 0 0; padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 24px); max-height:88vh; overflow-y:auto; }
+  .modal-title { font-size:17px; font-weight:600; color:var(--text); margin-bottom:16px; }
+  .modal-label { font-size:13px; color:var(--text-2); margin:14px 0 6px; }
+  .modal-textarea { width:100%; min-height:70px; padding:12px 14px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; outline:none; color:var(--text); resize:none; font-family:inherit; }
+  .modal-textarea:focus { border-color:var(--pink-light); }
+  .file-drop { display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px dashed var(--pink-light); border-radius:10px; padding:28px; color:var(--pink-light); font-size:14px; cursor:pointer; background:var(--pink-pale); gap:6px; }
+  .file-drop-icon { font-size:36px; }
+  .modal-preview { width:100%; border-radius:10px; max-height:220px; object-fit:cover; display:none; margin-top:8px; }
+  .modal-actions { display:flex; gap:10px; margin-top:20px; }
+  .modal-cancel { flex:1; padding:14px; border:1.5px solid var(--border); border-radius:12px; background:none; font-size:15px; color:var(--text-2); cursor:pointer; }
+  .modal-submit { flex:2; padding:14px; background:var(--pink); color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
+
+  /* ---- FLOATING HEARTS ---- */
+  #hearts-layer { position:fixed; inset:0; pointer-events:none; z-index:9999; overflow:hidden; }
+  @keyframes rise { 0%{transform:translateY(0) translateX(0) scale(1);opacity:1} 100%{transform:translateY(-340px) translateX(var(--dx)) scale(0.3);opacity:0} }
+  .fh { position:absolute; font-size:26px; animation:rise 1.8s ease-out forwards; }
+
+  /* ---- TOAST ---- */
+  #toast { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.72); color:#fff; padding:12px 20px; border-radius:10px; font-size:14px; z-index:9998; pointer-events:none; opacity:0; transition:opacity 0.2s; white-space:nowrap; }
+  #toast.show { opacity:1; }
+
+  /* ---- EMPTY STATE ---- */
+  .empty { text-align:center; padding:52px 20px; color:var(--text-3); font-size:14px; }
+  .empty-icon { font-size:52px; display:block; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+
+<!-- ===================== DISGUISE ===================== -->
+<div id="screen-disguise" class="screen">
+  <div class="w-header">
+    <div class="w-title">工作台</div>
+    <div class="w-avatar">我</div>
+  </div>
+  <div class="w-search-wrap">
+    <div class="w-search">
+      <span style="color:var(--work-text-3);font-size:15px">🔍</span>
+      <input id="work-search" type="text" placeholder="搜索项目/任务..."
+             autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+  </div>
+  <div class="w-stats">
+    <div class="w-stat blue"><div class="w-stat-num">8</div><div class="w-stat-label">进行中</div></div>
+    <div class="w-stat green"><div class="w-stat-num">12</div><div class="w-stat-label">已完成</div></div>
+    <div class="w-stat orange"><div class="w-stat-num">3</div><div class="w-stat-label">待审核</div></div>
+  </div>
+  <div class="w-section">
+    <div class="w-section-title">本周重点</div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">Q2 市场推广策略</div><span class="w-tag ongoing">进行中</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:65%;background:var(--work-blue)"></div></div>
+      <div class="w-meta">截止 04/15 · 市场部</div>
+    </div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">用户调研报告整理</div><span class="w-tag done">已完成</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:100%;background:var(--work-green)"></div></div>
+      <div class="w-meta">完成 03/10 · 产品组</div>
+    </div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">竞品分析文档 v2</div><span class="w-tag ongoing">进行中</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:25%;background:var(--work-blue)"></div></div>
+      <div class="w-meta">截止 04/30 · 战略部</div>
+    </div>
+    <div class="w-card">
+      <div class="w-card-top"><div class="w-card-name">H1 财务预算审核</div><span class="w-tag pending">待审核</span></div>
+      <div class="w-bar"><div class="w-bar-fill" style="width:90%;background:var(--work-orange)"></div></div>
+      <div class="w-meta">截止 03/20 · 财务部</div>
+    </div>
+  </div>
+  <div class="w-nav">
+    <div class="w-nav-item active"><span class="w-nav-icon">📊</span><span class="w-nav-label">看板</span></div>
+    <div class="w-nav-item"><span class="w-nav-icon">✅</span><span class="w-nav-label">任务</span></div>
+    <div class="w-nav-item"><span class="w-nav-icon">📅</span><span class="w-nav-label">日历</span></div>
+    <div class="w-nav-item"><span class="w-nav-icon">👤</span><span class="w-nav-label">我的</span></div>
+  </div>
+</div>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="screen-login" class="screen hidden">
+  <div class="login-icon">🫙</div>
+  <div class="login-title">HeartJar</div>
+  <div class="login-sub">just the two of us ·<br>our little world</div>
+  <div class="login-label">Your name</div>
+  <input id="login-name" class="login-input" type="text" placeholder="enter your name"
+         maxlength="12" autocomplete="off" autocorrect="off">
+  <button class="login-btn" onclick="doLogin()">Enter 💗</button>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="screen-app" class="screen hidden">
+  <div class="app-header">
+    <div>
+      <div class="app-title">HeartJar 🫙</div>
+      <div class="app-user" id="app-user"></div>
+    </div>
+    <button class="app-logout" onclick="doLogout()">Exit</button>
+  </div>
+
+  <div class="app-main">
+
+    <!-- JAR -->
+    <div id="tab-jar" class="tab">
+      <div class="jar-top">
+        <div class="jar-count-row">
+          <div class="jar-num" id="jar-num">0</div>
+          <div class="jar-unit">hearts</div>
+        </div>
+        <div class="jar-wrap">
+          <div class="jar-neck"></div>
+          <div class="jar-body">
+            <div class="jar-fill" id="jar-fill"></div>
+          </div>
+        </div>
+        <div id="jar-egg" class="jar-egg" style="display:none"></div>
+      </div>
+      <div class="legend-item"><span class="legend-icon">✨</span><span class="legend-desc">Save a Spark</span><span class="legend-pts">+1 💗</span></div>
+      <div class="legend-item"><span class="legend-icon">💌</span><span class="legend-desc">Send a Whisper</span><span class="legend-pts">+1 💗</span></div>
+      <div class="legend-item"><span class="legend-icon">👁</span><span class="legend-desc">Read a Whisper</span><span class="legend-pts">+1 💗</span></div>
+    </div>
+
+    <!-- SPARKS -->
+    <div id="tab-sparks" class="tab hidden">
+      <button class="add-btn" onclick="openSparkModal()">✨ Add a Spark</button>
+      <div id="sparks-list">
+        <div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>
+      </div>
+    </div>
+
+    <!-- WHISPERS -->
+    <div id="tab-whispers" class="tab hidden">
+      <div class="compose">
+        <div class="compose-label">💌 New Whisper</div>
+        <textarea id="whisper-input" class="compose-input"
+                  placeholder="say something..." rows="3" maxlength="300"></textarea>
+        <div class="compose-footer">
+          <button class="send-btn" onclick="sendWhisper()">Send</button>
+        </div>
+      </div>
+      <div id="whispers-list">
+        <div class="empty"><span class="empty-icon">💌</span>No whispers yet.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <nav class="app-nav">
+    <div class="app-nav-item active" onclick="switchTab('jar')">
+      <span class="nav-icon">🫙</span><span class="nav-label">Jar</span>
+    </div>
+    <div class="app-nav-item" onclick="switchTab('sparks')">
+      <span class="nav-icon">✨</span><span class="nav-label">Sparks</span>
+    </div>
+    <div class="app-nav-item" onclick="switchTab('whispers')">
+      <span class="nav-icon">💌</span><span class="nav-label">Whispers</span>
+    </div>
+  </nav>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="hidden" onclick="closeBg(event)">
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<!-- FLOATING HEARTS -->
+<div id="hearts-layer"></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- FILE INPUT -->
+<input type="file" id="file-input" accept="image/*" style="display:none" onchange="onFile(event)">
+
+<script>
+// ── CONFIG ────────────────────────────────────────
+const API         = 'https://heartjar-api-zisvjxaeqc.cn-hangzhou.fcapp.run';
+const UNLOCK_CODE = '20251027';
+const EASTER_EGGS = {
+  7:   '7 hearts 💗 every day this week, thinking of you',
+  14:  '14 hearts 💗 two weeks of tiny moments',
+  30:  '30 hearts 💗 a whole month of us',
+  52:  '52 hearts 💗 every week of a year',
+  99:  '99 hearts 💗 99 times I thought of you',
+  100: '🎉 100 hearts! this is something real'
+};
+
+// ── STATE ─────────────────────────────────────────
+const S = {
+  userName: '',
+  heartCount: 0,
+  sparks: [],
+  whispers: [],
+  pollTimer: null
+};
+
+let _sessionId = 0;
+
+// ── API HELPER ────────────────────────────────────
+async function api(path, body) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    // Use text/plain to avoid CORS preflight and bypass GFW JSON-POST blocking
+    const opts = body
+      ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body), signal: ctrl.signal }
+      : { method: 'GET', signal: ctrl.signal };
+    const res = await fetch(API + path, opts);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ── BOOT ──────────────────────────────────────────
+window.addEventListener('load', () => {
+  S.userName = localStorage.getItem('hj_user') || '';
+  showScreen('disguise');
+
+  document.getElementById('work-search').addEventListener('input', e => {
+    if (e.target.value === UNLOCK_CODE) {
+      e.target.value = '';
+      e.target.placeholder = 'Loading...';
+      setTimeout(() => {
+        e.target.placeholder = '搜索项目/任务...';
+        S.userName ? enterApp() : showScreen('login');
+      }, 500);
+    }
+  });
+
+  document.getElementById('login-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
 });
 
-const ROOM_KEY = 'room.json';
-const WHISPERS_KEY = 'whispers.json';
-const SPARKS_KEY = 'sparks.json';
+// ── SCREENS ───────────────────────────────────────
+function showScreen(name) {
+  ['disguise', 'login', 'app'].forEach(n =>
+    document.getElementById('screen-' + n).classList.toggle('hidden', n !== name)
+  );
+}
 
-// 读取 OSS 对象
-async function getJSON(key, defaultValue) {
+function doLogin() {
+  const n = document.getElementById('login-name').value.trim();
+  if (!n) { toast('Please enter your name'); return; }
+  S.userName = n;
+  localStorage.setItem('hj_user', n);
+  enterApp();
+}
+
+function doLogout() {
+  _sessionId++;
+  stopPolling();
+  localStorage.removeItem('hj_user');
+  S.userName = '';
+  S.heartCount = 0;
+  S.sparks = [];
+  S.whispers = [];
+  showScreen('disguise');
+}
+
+function enterApp() {
+  _sessionId++;
+  showScreen('app');
+  document.getElementById('app-user').textContent = 'Hi, ' + S.userName;
+  switchTab('jar');
+  startPolling();
+  loadSparks();
+}
+
+// ── POLLING ───────────────────────────────────────
+function startPolling() {
+  stopPolling();
+  pollOnce();
+  S.pollTimer = setInterval(pollOnce, 3000);
+}
+
+function stopPolling() {
+  if (S.pollTimer) { clearInterval(S.pollTimer); S.pollTimer = null; }
+}
+
+async function pollOnce() {
   try {
-    const result = await client.get(key);
-    return JSON.parse(result.content.toString());
-  } catch (e) {
-    if (e.code === 'NoSuchKey') return defaultValue;
-    throw e;
+    const data = await api('/state');
+    const prev = S.heartCount;
+    S.heartCount = data.heartCount || 0;
+    if (S.heartCount > prev && prev > 0) floatHearts(1);
+    S.whispers = data.whispers || [];
+    renderJar();
+    renderWhispers();
+  } catch(e) {
+    // silent — will retry in 3s
   }
 }
 
-// 写入 OSS 对象
-async function putJSON(key, data) {
-  await client.put(key, Buffer.from(JSON.stringify(data)));
+async function loadSparks() {
+  try {
+    const data = await api('/sparks');
+    S.sparks = data.sparks || [];
+    renderSparks();
+  } catch(e) {
+    console.warn('loadSparks failed:', e.message);
+  }
 }
 
-exports.handler = async (req, resp, context) => {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json'
-  };
+// ── JAR ───────────────────────────────────────────
+function renderJar() {
+  const c = S.heartCount;
+  document.getElementById('jar-num').textContent = c;
+  const shown = Math.min(c, 30);
+  const fill  = document.getElementById('jar-fill');
+  fill.style.height = Math.min(shown / 30 * 100, 100) + '%';
+  fill.innerHTML    = Array(shown).fill('<span class="jh">💗</span>').join('');
+  const egg = document.getElementById('jar-egg');
+  if (EASTER_EGGS[c]) { egg.textContent = EASTER_EGGS[c]; egg.style.display = 'block'; }
+  else egg.style.display = 'none';
+}
 
-  // 处理 CORS preflight
-  if (req.method === 'OPTIONS') {
-    resp.setStatusCode(200);
-    Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-    resp.send('');
+// ── SPARKS ────────────────────────────────────────
+function renderSparks() {
+  const el = document.getElementById('sparks-list');
+  if (!S.sparks.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>';
     return;
   }
+  el.innerHTML = S.sparks.map(s => `
+    <div class="spark-card">
+      <img class="spark-img" src="${s.image}" loading="lazy">
+      <div class="spark-body">
+        ${s.caption ? `<div class="spark-caption">${esc(s.caption)}</div>` : ''}
+        <div class="spark-meta">${fmtTime(s.timestamp)} · ${esc(s.user)}</div>
+      </div>
+    </div>`).join('');
+}
 
-  const path = req.path || '/';
+let _sparkFile = null;
 
+function openSparkModal() {
+  _sparkFile = null;
+  document.getElementById('modal-box').innerHTML = `
+    <div class="modal-title">✨ Add a Spark</div>
+    <div class="modal-label">Photo</div>
+    <div class="file-drop" id="file-drop" onclick="document.getElementById('file-input').click()">
+      <span class="file-drop-icon">📷</span>
+      <span>tap to choose a photo</span>
+    </div>
+    <img id="m-preview" class="modal-preview">
+    <div class="modal-label">Caption <span style="color:var(--text-3);font-weight:400">(optional)</span></div>
+    <textarea id="m-caption" class="modal-textarea" placeholder="what made you feel this way..." rows="3" maxlength="200"></textarea>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-submit" onclick="submitSpark()">Save +💗</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function onFile(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  _sparkFile = f;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const p = document.getElementById('m-preview');
+    if (p) { p.src = ev.target.result; p.style.display = 'block'; }
+    const d = document.getElementById('file-drop');
+    if (d) d.style.display = 'none';
+  };
+  reader.readAsDataURL(f);
+  e.target.value = '';
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 800;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function submitSpark() {
+  if (!_sparkFile) { toast('Please choose a photo first'); return; }
+  const caption = (document.getElementById('m-caption')?.value || '').trim();
+  toast('Saving...');
   try {
-    // GET /state - 获取房间状态
-    if (req.method === 'GET' && path === '/state') {
-      const [room, whispers] = await Promise.all([
-        getJSON(ROOM_KEY, { heartCount: 0 }),
-        getJSON(WHISPERS_KEY, [])
-      ]);
-      resp.setStatusCode(200);
-      Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-      resp.send(JSON.stringify({ heartCount: room.heartCount, whispers }));
-      return;
-    }
-
-    // POST /heart - 增加爱心
-    if (req.method === 'POST' && path === '/heart') {
-      const room = await getJSON(ROOM_KEY, { heartCount: 0 });
-      room.heartCount = (room.heartCount || 0) + 1;
-      await putJSON(ROOM_KEY, room);
-      resp.setStatusCode(200);
-      Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-      resp.send(JSON.stringify({ heartCount: room.heartCount }));
-      return;
-    }
-
-    // GET /sparks - 获取照片列表
-    if (req.method === 'GET' && path === '/sparks') {
-      const sparks = await getJSON(SPARKS_KEY, []);
-      resp.setStatusCode(200);
-      Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-      resp.send(JSON.stringify({ sparks }));
-      return;
-    }
-
-    // POST /spark - 上传照片
-    if (req.method === 'POST' && path === '/spark') {
-      const body = JSON.parse(req.body.toString());
-      const sparks = await getJSON(SPARKS_KEY, []);
-      sparks.push({
-        id: Date.now().toString(),
-        user: body.user,
-        image: body.image,
-        timestamp: Date.now()
-      });
-      await putJSON(SPARKS_KEY, sparks);
-      resp.setStatusCode(200);
-      Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-      resp.send(JSON.stringify({ success: true }));
-      return;
-    }
-
-    // POST /whisper - 发送消息
-    if (req.method === 'POST' && path === '/whisper') {
-      const body = JSON.parse(req.body.toString());
-      const whispers = await getJSON(WHISPERS_KEY, []);
-      whispers.push({
-        id: Date.now().toString(),
-        user: body.user,
-        text: body.text,
-        timestamp: Date.now(),
-        read: false
-      });
-      await putJSON(WHISPERS_KEY, whispers);
-      resp.setStatusCode(200);
-      Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-      resp.send(JSON.stringify({ success: true }));
-      return;
-    }
-
-    // POST /whisper/read - 标记消息已读
-    if (req.method === 'POST' && path === '/whisper/read') {
-      const body = JSON.parse(req.body.toString());
-      const whispers = await getJSON(WHISPERS_KEY, []);
-      const msg = whispers.find(w => w.id === body.id);
-      if (msg) msg.read = true;
-      await putJSON(WHISPERS_KEY, whispers);
-      resp.setStatusCode(200);
-      Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-      resp.send(JSON.stringify({ success: true }));
-      return;
-    }
-
-    // 404
-    resp.setStatusCode(404);
-    Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-    resp.send(JSON.stringify({ error: 'Not found' }));
-  } catch (e) {
-    resp.setStatusCode(500);
-    Object.entries(cors).forEach(([k, v]) => resp.setHeader(k, v));
-    resp.send(JSON.stringify({ error: e.message }));
+    const imageData = await compressImage(_sparkFile);
+    await api('/spark', { user: S.userName, image: imageData, caption });
+    _sparkFile = null;
+    closeModal();
+    floatHearts(2);
+    toast('Spark saved +1 💗');
+    pollOnce();
+    loadSparks();
+  } catch(err) {
+    toast('Could not save — check connection');
   }
-};
+}
+
+// ── WHISPERS ──────────────────────────────────────
+function renderWhispers() {
+  const el = document.getElementById('whispers-list');
+  if (!S.whispers.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">💌</span>No whispers yet.</div>';
+    return;
+  }
+  el.innerHTML = S.whispers.map(w => {
+    return `
+    <div class="whisper-card">
+      <div class="wh-btn" onclick="readWhisper('${w.id}',${w.user === S.userName})">${w.read ? '💗' : '🤍'}</div>
+      <div class="wh-body">
+        <div class="wh-from">${esc(w.user)}${w.user === S.userName ? ' · you' : ''}</div>
+        <div class="wh-text">${esc(w.text)}</div>
+        ${!w.read && w.user !== S.userName ? '<div class="wh-hint">tap ♡ to mark as read +1💗</div>' : ''}
+        <div class="wh-time">${fmtTime(w.timestamp)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function sendWhisper() {
+  const val = document.getElementById('whisper-input').value.trim();
+  if (!val) { toast('Say something first 💌'); return; }
+  const btn = document.querySelector('.send-btn');
+  if (btn) btn.disabled = true;
+  toast('Sending...');
+  try {
+    await api('/whisper', { user: S.userName, text: val });
+    document.getElementById('whisper-input').value = '';
+    floatHearts(1);
+    toast('Whisper sent +1 💗');
+    pollOnce();
+  } catch(err) {
+    toast('Could not send — check connection');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function readWhisper(id, mine) {
+  if (mine) { toast("That's your own whisper"); return; }
+  const w = S.whispers.find(x => x.id === id);
+  if (!w || w.isRead) return;
+  try {
+    await api('/whisper/read', { id });
+    floatHearts(2);
+    toast('Read +1 💗');
+    pollOnce();
+  } catch(err) {
+    toast('Could not update — check connection');
+  }
+}
+
+// ── TABS ──────────────────────────────────────────
+function switchTab(tab) {
+  ['jar', 'sparks', 'whispers'].forEach(t =>
+    document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab)
+  );
+  document.querySelectorAll('.app-nav-item').forEach((el, i) =>
+    el.classList.toggle('active', ['jar', 'sparks', 'whispers'][i] === tab)
+  );
+  if (tab === 'sparks') loadSparks();
+}
+
+// ── MODAL ─────────────────────────────────────────
+function closeModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  _sparkFile = null;
+}
+function closeBg(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+// ── ANIMATION ─────────────────────────────────────
+function floatHearts(n = 1) {
+  const layer = document.getElementById('hearts-layer');
+  for (let i = 0; i < n; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'fh';
+      el.style.cssText = `left:${20 + Math.random() * 60}%;bottom:80px;--dx:${(Math.random()-.5)*80}px`;
+      el.textContent = '💗';
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 1900);
+    }, i * 200);
+  }
+}
+
+// ── TOAST ─────────────────────────────────────────
+let _tt;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── UTILS ─────────────────────────────────────────
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const diff = Date.now() - d.getTime();
+  if (diff < 60000)    return 'just now';
+  if (diff < 3600000)  return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
