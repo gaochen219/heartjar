@@ -88,6 +88,12 @@
   .jar-body { width:150px; height:180px; border:2.5px solid var(--pink-light); border-radius:4px 4px 34px 34px; background:var(--white); overflow:hidden; position:relative; }
   .jar-fill { position:absolute; bottom:0; left:0; right:0; background:var(--pink-pale); transition:height 0.7s ease; display:flex; flex-wrap:wrap; align-content:flex-end; padding:6px; gap:1px; }
   .jh { font-size:17px; }
+  .jc { font-size:18px; animation: hjSpin 3s linear infinite; }
+  .js { font-size:20px; animation: hjGlow 2s ease-in-out infinite; }
+  .jk { font-size:22px; animation: hjBounce 1.2s ease-in-out infinite; }
+  @keyframes hjSpin   { 0% { filter:hue-rotate(0deg); } 100% { filter:hue-rotate(360deg); } }
+  @keyframes hjGlow   { 0%,100% { filter:drop-shadow(0 0 2px rgba(255,107,157,0.4)); transform:scale(1); } 50% { filter:drop-shadow(0 0 6px rgba(255,107,157,0.9)); transform:scale(1.12); } }
+  @keyframes hjBounce { 0%,100% { transform:translateY(0) rotate(-10deg); } 50% { transform:translateY(-4px) rotate(10deg); } }
   .jar-egg { background:var(--pink-pale); border:1px solid var(--pink-light); border-radius:12px; padding:12px 16px; margin:0 0 20px; font-size:14px; color:var(--pink); text-align:center; font-style:italic; line-height:1.5; }
   .legend-item { display:flex; align-items:center; background:var(--white); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
   .legend-icon { font-size:20px; margin-right:12px; }
@@ -435,10 +441,24 @@ async function loadSparks() {
 function renderJar() {
   const c = S.heartCount;
   document.getElementById('jar-num').textContent = c;
-  const shown = Math.min(c, 30);
-  const fill  = document.getElementById('jar-fill');
-  fill.style.height = Math.min(shown / 30 * 100, 100) + '%';
-  fill.innerHTML    = Array(shown).fill('<span class="jh">💗</span>').join('');
+
+  const carrots  = Math.floor(c / 1000);
+  const crystals = Math.floor((c % 1000) / 100);
+  const candies  = Math.floor((c % 100) / 10);
+  const hearts   = c % 10;
+
+  const items = [
+    ...Array(carrots).fill('<span class="jk">🥕</span>'),
+    ...Array(crystals).fill('<span class="js">🔮</span>'),
+    ...Array(candies).fill('<span class="jc">🍬</span>'),
+    ...Array(hearts).fill('<span class="jh">💗</span>'),
+  ];
+
+  const fill = document.getElementById('jar-fill');
+  const slots = carrots * 8 + crystals * 4 + candies * 2 + hearts;
+  fill.style.height = Math.min(slots / 20 * 100, 100) + '%';
+  fill.innerHTML = items.join('');
+
   const egg = document.getElementById('jar-egg');
   if (EASTER_EGGS[c]) { egg.textContent = EASTER_EGGS[c]; egg.style.display = 'block'; }
   else egg.style.display = 'none';
@@ -451,7 +471,7 @@ function renderSparks() {
     el.innerHTML = '<div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>';
     return;
   }
-  el.innerHTML = S.sparks.map(s => `
+  el.innerHTML = S.sparks.slice().reverse().map(s => `
     <div class="spark-card">
       <img class="spark-img" src="${s.image}" loading="lazy">
       <div class="spark-body">
@@ -545,7 +565,7 @@ function renderWhispers() {
     el.innerHTML = '<div class="empty"><span class="empty-icon">💌</span>No whispers yet.</div>';
     return;
   }
-  el.innerHTML = S.whispers.map(w => {
+  el.innerHTML = S.whispers.slice().reverse().map(w => {
     return `
     <div class="whisper-card">
       <div class="wh-btn" onclick="readWhisper('${w.id}',${w.user === S.userName})">${w.read ? '💗' : '🤍'}</div>
