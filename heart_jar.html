@@ -206,6 +206,9 @@
   <div class="login-label">Your name</div>
   <input id="login-name" class="login-input" type="text" placeholder="enter your name"
          maxlength="12" autocomplete="off" autocorrect="off">
+  <div class="login-label">Password</div>
+  <input id="login-pass" class="login-input" type="password" placeholder="enter password"
+         autocomplete="off">
   <button class="login-btn" onclick="doLogin()">Enter 💗</button>
 </div>
 
@@ -296,6 +299,7 @@
 <script>
 // ── CONFIG ────────────────────────────────────────
 const API         = 'https://heartjar-api-zisvjxaeqc.cn-hangzhou.fcapp.run';
+const PASSWORD    = '251027';
 const UNLOCK_CODE = '20251027';
 const EASTER_EGGS = {
   7:   '7 hearts 💗 every day this week, thinking of you',
@@ -364,7 +368,9 @@ function showScreen(name) {
 
 function doLogin() {
   const n = document.getElementById('login-name').value.trim();
+  const p = document.getElementById('login-pass').value;
   if (!n) { toast('Please enter your name'); return; }
+  if (p !== PASSWORD) { toast('Wrong password 🔒'); return; }
   S.userName = n;
   localStorage.setItem('hj_user', n);
   enterApp();
@@ -520,6 +526,7 @@ async function submitSpark() {
   try {
     const imageData = await compressImage(_sparkFile);
     await api('/spark', { user: S.userName, image: imageData, caption });
+    api('/heart', {});
     _sparkFile = null;
     closeModal();
     floatHearts(2);
@@ -560,6 +567,7 @@ async function sendWhisper() {
   toast('Sending...');
   try {
     await api('/whisper', { user: S.userName, text: val });
+    api('/heart', {});
     document.getElementById('whisper-input').value = '';
     floatHearts(1);
     toast('Whisper sent +1 💗');
@@ -577,6 +585,7 @@ async function readWhisper(id, mine) {
   if (!w || w.isRead) return;
   try {
     await api('/whisper/read', { id });
+    api('/heart', {});
     floatHearts(2);
     toast('Read +1 💗');
     pollOnce();
