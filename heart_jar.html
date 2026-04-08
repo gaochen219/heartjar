@@ -355,7 +355,7 @@ window.addEventListener('load', () => {
       e.target.placeholder = 'Loading...';
       setTimeout(() => {
         e.target.placeholder = '搜索项目/任务...';
-        S.userName ? enterApp() : showScreen('login');
+        S.userName && sessionStorage.getItem('hj_auth') ? enterApp() : showScreen('login');
       }, 500);
     }
   });
@@ -379,6 +379,7 @@ function doLogin() {
   if (p !== PASSWORD) { toast('Wrong password 🔒'); return; }
   S.userName = n;
   localStorage.setItem('hj_user', n);
+  sessionStorage.setItem('hj_auth', '1');
   enterApp();
 }
 
@@ -386,6 +387,7 @@ function doLogout() {
   _sessionId++;
   stopPolling();
   localStorage.removeItem('hj_user');
+  sessionStorage.removeItem('hj_auth');
   S.userName = '';
   S.heartCount = 0;
   S.sparks = [];
@@ -393,19 +395,19 @@ function doLogout() {
   showScreen('disguise');
 }
 
-function enterApp() {
+async function enterApp() {
   _sessionId++;
   showScreen('app');
   document.getElementById('app-user').textContent = 'Hi, ' + S.userName;
   switchTab('jar');
-  startPolling();
+  await pollOnce();
   loadSparks();
+  S.pollTimer = setInterval(pollOnce, 3000);
 }
 
 // ── POLLING ───────────────────────────────────────
 function startPolling() {
   stopPolling();
-  pollOnce();
   S.pollTimer = setInterval(pollOnce, 3000);
 }
 
