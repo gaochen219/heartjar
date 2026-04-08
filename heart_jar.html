@@ -625,7 +625,7 @@ function switchTab(tab) {
     el.classList.toggle('active', ['jar', 'sparks', 'whispers'][i] === tab)
   );
   if (tab === 'sparks') loadSparks();
-  if (tab === 'whispers') renderWhispers();
+  if (tab === 'jar' || tab === 'whispers') pollOnce();
 }
 
 // ── MODAL ─────────────────────────────────────────
