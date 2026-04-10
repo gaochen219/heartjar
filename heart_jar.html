@@ -570,11 +570,11 @@ function renderWhispers() {
   el.innerHTML = S.whispers.slice().reverse().map(w => {
     return `
     <div class="whisper-card">
-      <div class="wh-btn" onclick="readWhisper('${w.id}',${w.user === S.userName})">${w.read ? '💗' : '🤍'}</div>
+      <div class="wh-btn" onclick="readWhisper('${w.id}')">${w.read ? '💗' : '🤍'}</div>
       <div class="wh-body">
-        <div class="wh-from">${esc(w.user)}${w.user === S.userName ? ' · you' : ''}</div>
+        <div class="wh-from">🥕</div>
         <div class="wh-text">${esc(w.text)}</div>
-        ${!w.read && w.user !== S.userName ? '<div class="wh-hint">tap ♡ to mark as read +1💗</div>' : ''}
+        ${!w.read ? '<div class="wh-hint">tap ♡ to mark as read +1💗</div>' : ''}
         <div class="wh-time">${fmtTime(w.timestamp)}</div>
       </div>
     </div>`;
@@ -601,10 +601,9 @@ async function sendWhisper() {
   }
 }
 
-async function readWhisper(id, mine) {
-  if (mine) { toast("That's your own whisper"); return; }
+async function readWhisper(id) {
   const w = S.whispers.find(x => x.id === id);
-  if (!w || w.isRead) return;
+  if (!w || w.read) return;
   try {
     await api('/whisper/read', { id });
     api('/heart', {});
