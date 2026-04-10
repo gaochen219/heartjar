@@ -668,7 +668,7 @@ async function sendReply(parentId) {
   }
 }
 
-
+async function readWhisper(id) {
   const w = S.whispers.find(x => x.id === id);
   if (!w || w.read) return;
   try {
