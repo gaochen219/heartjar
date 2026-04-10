@@ -122,7 +122,17 @@
   .wh-from { font-size:12px; color:var(--text-3); margin-bottom:4px; }
   .wh-text { font-size:14px; color:var(--text); line-height:1.6; word-break:break-word; }
   .wh-hint { font-size:11px; color:var(--pink); margin-top:5px; }
-  .wh-time { font-size:11px; color:var(--text-3); margin-top:6px; }
+  .wh-footer { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .wh-time { font-size:11px; color:var(--text-3); }
+  .reply-btn { background:none; border:none; font-size:12px; color:var(--text-3); cursor:pointer; padding:0; }
+  .reply-btn:active { color:var(--pink); }
+  .replies { margin-top:10px; border-left:2px solid var(--border); padding-left:12px; }
+  .reply-card { display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; }
+  .wh-btn.sm { font-size:20px; }
+  .reply-compose { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:none; }
+  .reply-input { width:100%; padding:8px 12px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; outline:none; resize:none; font-family:inherit; color:var(--text); }
+  .reply-input:focus { border-color:var(--pink-light); }
+  .reply-send-btn { margin-top:8px; float:right; background:var(--pink); color:#fff; border:none; border-radius:10px; padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer; }
 
   /* ---- MODAL ---- */
   #modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:flex-end; }
@@ -563,19 +573,48 @@ async function submitSpark() {
 // ── WHISPERS ──────────────────────────────────────
 function renderWhispers() {
   const el = document.getElementById('whispers-list');
-  if (!S.whispers.length) {
+  const all = S.whispers;
+  if (!all.length) {
     el.innerHTML = '<div class="empty"><span class="empty-icon">💌</span>No whispers yet.</div>';
     return;
   }
-  el.innerHTML = S.whispers.slice().reverse().map(w => {
+  const topLevel = all.filter(w => !w.parentId).reverse();
+  const replyMap = {};
+  all.filter(w => w.parentId).forEach(r => {
+    if (!replyMap[r.parentId]) replyMap[r.parentId] = [];
+    replyMap[r.parentId].push(r);
+  });
+
+  el.innerHTML = topLevel.map(w => {
+    const replies = (replyMap[w.id] || []).sort((a, b) => a.timestamp - b.timestamp);
     return `
     <div class="whisper-card">
       <div class="wh-btn" onclick="readWhisper('${w.id}')">${w.read ? '💗' : '🤍'}</div>
-      <div class="wh-body">
+      <div class="wh-body" style="flex:1">
         <div class="wh-from">🥕</div>
         <div class="wh-text">${esc(w.text)}</div>
         ${!w.read ? '<div class="wh-hint">tap ♡ to mark as read +1💗</div>' : ''}
-        <div class="wh-time">${fmtTime(w.timestamp)}</div>
+        <div class="wh-footer">
+          <span class="wh-time">${fmtTime(w.timestamp)}</span>
+          <button class="reply-btn" onclick="toggleReply('${w.id}')">💬 Reply</button>
+        </div>
+        ${replies.length ? `<div class="replies">${replies.map(r => `
+          <div class="reply-card">
+            <div class="wh-btn sm" onclick="readWhisper('${r.id}')">${r.read ? '💗' : '🤍'}</div>
+            <div class="wh-body">
+              <div class="wh-from">🥕</div>
+              <div class="wh-text">${esc(r.text)}</div>
+              <div class="wh-footer">
+                <span class="wh-time">${fmtTime(r.timestamp)}</span>
+                <button class="reply-btn" onclick="toggleReply('${w.id}')">💬 Reply</button>
+              </div>
+            </div>
+          </div>`).join('')}</div>` : ''}
+        <div class="reply-compose" id="reply-compose-${w.id}">
+          <textarea class="reply-input" id="reply-input-${w.id}" placeholder="write a reply..." rows="2" maxlength="300"></textarea>
+          <button class="reply-send-btn" onclick="sendReply('${w.id}')">Send 💗</button>
+          <div style="clear:both"></div>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -601,7 +640,35 @@ async function sendWhisper() {
   }
 }
 
-async function readWhisper(id) {
+function toggleReply(id) {
+  document.querySelectorAll('.reply-compose').forEach(el => {
+    if (el.id !== 'reply-compose-' + id) el.style.display = 'none';
+  });
+  const compose = document.getElementById('reply-compose-' + id);
+  const isHidden = !compose.style.display || compose.style.display === 'none';
+  compose.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) document.getElementById('reply-input-' + id).focus();
+}
+
+async function sendReply(parentId) {
+  const input = document.getElementById('reply-input-' + parentId);
+  const val = input.value.trim();
+  if (!val) { toast('Say something first 💌'); return; }
+  toast('Sending...');
+  try {
+    await api('/whisper', { user: S.userName, text: val, parentId });
+    api('/heart', {});
+    input.value = '';
+    document.getElementById('reply-compose-' + parentId).style.display = 'none';
+    floatHearts(1);
+    toast('Reply sent +1 💗');
+    pollOnce();
+  } catch(err) {
+    toast('Could not send — check connection');
+  }
+}
+
+
   const w = S.whispers.find(x => x.id === id);
   if (!w || w.read) return;
   try {
