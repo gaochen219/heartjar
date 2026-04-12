@@ -479,18 +479,50 @@ function renderJar() {
 // ── SPARKS ────────────────────────────────────────
 function renderSparks() {
   const el = document.getElementById('sparks-list');
-  if (!S.sparks.length) {
+  const all = S.sparks;
+  if (!all.length) {
     el.innerHTML = '<div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>';
     return;
   }
-  el.innerHTML = S.sparks.slice().reverse().map(s => `
+  const topLevel = all.filter(s => !s.parentId).reverse();
+  const replyMap = {};
+  all.filter(s => s.parentId).forEach(r => {
+    if (!replyMap[r.parentId]) replyMap[r.parentId] = [];
+    replyMap[r.parentId].push(r);
+  });
+
+  el.innerHTML = topLevel.map(s => {
+    const replies = (replyMap[s.id] || []).sort((a, b) => a.timestamp - b.timestamp);
+    return `
     <div class="spark-card">
       <img class="spark-img" src="${s.image}" loading="lazy">
       <div class="spark-body">
         ${s.caption ? `<div class="spark-caption">${esc(s.caption)}</div>` : ''}
         <div class="spark-meta">${fmtTime(s.timestamp)} · ${esc(s.user)}</div>
+        <div class="wh-footer">
+          <span></span>
+          <button class="reply-btn" onclick="toggleSparkReply('${s.id}')">💬 Reply</button>
+        </div>
+        ${replies.length ? `<div class="replies">${replies.map(r => `
+          <div class="reply-card">
+            <div class="wh-btn sm" onclick="readSpark('${r.id}')">${r.read ? '💗' : '🤍'}</div>
+            <div class="wh-body">
+              <div class="wh-from">🥕</div>
+              <div class="wh-text">${esc(r.caption)}</div>
+              <div class="wh-footer">
+                <span class="wh-time">${fmtTime(r.timestamp)}</span>
+                <button class="reply-btn" onclick="toggleSparkReply('${s.id}')">💬 Reply</button>
+              </div>
+            </div>
+          </div>`).join('')}</div>` : ''}
+        <div class="reply-compose" id="spark-reply-compose-${s.id}">
+          <textarea class="reply-input" id="spark-reply-input-${s.id}" placeholder="write a reply..." rows="2" maxlength="300"></textarea>
+          <button class="reply-send-btn" onclick="sendSparkReply('${s.id}')">Send 💗</button>
+          <div style="clear:both"></div>
+        </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 let _sparkFile = null;
@@ -677,6 +709,48 @@ async function readWhisper(id) {
     floatHearts(2);
     toast('Read +1 💗');
     pollOnce();
+  } catch(err) {
+    toast('Could not update — check connection');
+  }
+}
+
+function toggleSparkReply(id) {
+  document.querySelectorAll('.reply-compose').forEach(el => {
+    if (el.id !== 'spark-reply-compose-' + id) el.style.display = 'none';
+  });
+  const compose = document.getElementById('spark-reply-compose-' + id);
+  const isHidden = !compose.style.display || compose.style.display === 'none';
+  compose.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) document.getElementById('spark-reply-input-' + id).focus();
+}
+
+async function sendSparkReply(parentId) {
+  const input = document.getElementById('spark-reply-input-' + parentId);
+  const val = input.value.trim();
+  if (!val) { toast('Say something first 💌'); return; }
+  toast('Sending...');
+  try {
+    await api('/spark', { user: S.userName, image: '', caption: val, parentId });
+    api('/heart', {});
+    input.value = '';
+    document.getElementById('spark-reply-compose-' + parentId).style.display = 'none';
+    floatHearts(1);
+    toast('Reply sent +1 💗');
+    loadSparks();
+  } catch(err) {
+    toast('Could not send — check connection');
+  }
+}
+
+async function readSpark(id) {
+  const s = S.sparks.find(x => x.id === id);
+  if (!s || s.read) return;
+  try {
+    await api('/spark/read', { id });
+    api('/heart', {});
+    floatHearts(2);
+    toast('Read +1 💗');
+    loadSparks();
   } catch(err) {
     toast('Could not update — check connection');
   }
