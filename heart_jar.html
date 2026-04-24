@@ -89,11 +89,16 @@
   .jar-fill { position:absolute; bottom:0; left:0; right:0; background:var(--pink-pale); transition:height 0.7s ease; display:flex; flex-wrap:wrap; align-content:flex-end; padding:6px; gap:1px; }
   .jh { font-size:17px; }
   .jc { font-size:18px; animation: hjSpin 3s linear infinite; }
-  .js { font-size:20px; animation: hjGlow 2s ease-in-out infinite; }
-  .jk { font-size:22px; animation: hjBounce 1.2s ease-in-out infinite; }
-  @keyframes hjSpin   { 0% { filter:hue-rotate(0deg); } 100% { filter:hue-rotate(360deg); } }
-  @keyframes hjGlow   { 0%,100% { filter:drop-shadow(0 0 2px rgba(255,107,157,0.4)); transform:scale(1); } 50% { filter:drop-shadow(0 0 6px rgba(255,107,157,0.9)); transform:scale(1.12); } }
-  @keyframes hjBounce { 0%,100% { transform:translateY(0) rotate(-10deg); } 50% { transform:translateY(-4px) rotate(10deg); } }
+  .js { font-size:18px; animation: hjGlow 2s ease-in-out infinite; }
+  .jk { font-size:19px; animation: hjBounce 1.2s ease-in-out infinite; }
+  .ja { font-size:19px; animation: hjSpin 2.5s linear infinite; }
+  .jg { font-size:19px; animation: hjBounce 1s ease-in-out infinite; }
+  .ju { font-size:20px; animation: hjShimmer 1.8s ease-in-out infinite; }
+  .jd { font-size:20px; animation: hjGlow 1.2s ease-in-out infinite; }
+  @keyframes hjSpin    { 0% { filter:hue-rotate(0deg); } 100% { filter:hue-rotate(360deg); } }
+  @keyframes hjGlow    { 0%,100% { filter:drop-shadow(0 0 2px rgba(255,107,157,0.4)); transform:scale(1); } 50% { filter:drop-shadow(0 0 6px rgba(255,107,157,0.9)); transform:scale(1.12); } }
+  @keyframes hjBounce  { 0%,100% { transform:translateY(0) rotate(-10deg); } 50% { transform:translateY(-4px) rotate(10deg); } }
+  @keyframes hjShimmer { 0%,100% { filter:drop-shadow(0 0 2px rgba(190,120,255,0.4)); transform:scale(1) rotate(-6deg); } 50% { filter:drop-shadow(0 0 8px rgba(190,120,255,0.9)); transform:scale(1.1) rotate(6deg); } }
   .jar-egg { background:var(--pink-pale); border:1px solid var(--pink-light); border-radius:12px; padding:12px 16px; margin:0 0 20px; font-size:14px; color:var(--pink); text-align:center; font-style:italic; line-height:1.5; }
   .legend-item { display:flex; align-items:center; background:var(--white); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
   .legend-icon { font-size:20px; margin-right:12px; }
@@ -133,6 +138,19 @@
   .reply-input { width:100%; padding:8px 12px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; outline:none; resize:none; font-family:inherit; color:var(--text); }
   .reply-input:focus { border-color:var(--pink-light); }
   .reply-send-btn { margin-top:8px; float:right; background:var(--pink); color:#fff; border:none; border-radius:10px; padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+
+  /* ---- UNREAD SECTION ---- */
+  .unread-section { margin:0 0 20px; }
+  .unread-row { display:flex; gap:10px; }
+  .unread-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; background:var(--white); border:none; border-radius:14px; padding:16px 12px; cursor:pointer; transition:background 0.15s; }
+  .unread-btn:active { background:var(--pink-pale); }
+  .unread-count { font-size:26px; font-weight:700; color:var(--pink); line-height:1; }
+  .unread-label { font-size:12px; color:var(--text-3); }
+  .all-lit { text-align:center; padding:18px 16px; background:var(--white); border-radius:14px; animation:fadeInLit 0.8s ease forwards; }
+  .all-lit-text { font-size:15px; color:var(--pink); line-height:1.6; }
+  .all-lit-heart { display:inline-block; animation:pulseHeart 2s ease-in-out infinite; }
+  @keyframes fadeInLit { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes pulseHeart { 0%,100%{transform:scale(1)} 50%{transform:scale(1.25);filter:drop-shadow(0 0 4px rgba(255,107,157,0.7))} }
 
   /* ---- MODAL ---- */
   #modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:flex-end; }
@@ -255,9 +273,7 @@
         </div>
         <div id="jar-egg" class="jar-egg" style="display:none"></div>
       </div>
-      <div class="legend-item"><span class="legend-icon">✨</span><span class="legend-desc">Save a Spark</span><span class="legend-pts">+1 💗</span></div>
-      <div class="legend-item"><span class="legend-icon">💌</span><span class="legend-desc">Send a Whisper</span><span class="legend-pts">+1 💗</span></div>
-      <div class="legend-item"><span class="legend-icon">👁</span><span class="legend-desc">Read a Whisper</span><span class="legend-pts">+1 💗</span></div>
+      <div id="jar-unread" class="unread-section"></div>
     </div>
 
     <!-- SPARKS -->
@@ -449,17 +465,41 @@ async function loadSparks() {
   }
 }
 
+// ── UNREAD HEARTS ─────────────────────────────────
+function renderUnread() {
+  const el = document.getElementById('jar-unread');
+  if (!el) return;
+  const wCount = S.whispers.filter(w => !w.read).length;
+  const sCount = S.sparks.filter(s => !s.read).length;
+  if (wCount === 0 && sCount === 0) {
+    el.innerHTML = `<div class="all-lit"><div class="all-lit-text">All hearts aglow — anything new to share? <span class="all-lit-heart">💗</span></div></div>`;
+    return;
+  }
+  const btns = [];
+  if (wCount > 0) btns.push(`<button class="unread-btn" onclick="switchTab('whispers')"><div class="unread-count">${wCount} 🤍</div><div class="unread-label">Whispers</div></button>`);
+  if (sCount > 0) btns.push(`<button class="unread-btn" onclick="switchTab('sparks')"><div class="unread-count">${sCount} 🤍</div><div class="unread-label">Sparks</div></button>`);
+  el.innerHTML = `<div class="unread-row">${btns.join('')}</div>`;
+}
+
 // ── JAR ───────────────────────────────────────────
 function renderJar() {
   const c = S.heartCount;
   document.getElementById('jar-num').textContent = c;
 
-  const carrots  = Math.floor(c / 1000);
-  const crystals = Math.floor((c % 1000) / 100);
-  const candies  = Math.floor((c % 100) / 10);
-  const hearts   = c % 10;
+  const diamonds   = Math.floor(c / 10000000);
+  const unicorns   = Math.floor((c % 10000000) / 1000000);
+  const drumsticks = Math.floor((c % 1000000) / 100000);
+  const avocados   = Math.floor((c % 100000) / 10000);
+  const carrots    = Math.floor((c % 10000) / 1000);
+  const crystals   = Math.floor((c % 1000) / 100);
+  const candies    = Math.floor((c % 100) / 10);
+  const hearts     = c % 10;
 
   const items = [
+    ...Array(diamonds).fill('<span class="jd">💎</span>'),
+    ...Array(unicorns).fill('<span class="ju">🦄</span>'),
+    ...Array(drumsticks).fill('<span class="jg">🍗</span>'),
+    ...Array(avocados).fill('<span class="ja">🥑</span>'),
     ...Array(carrots).fill('<span class="jk">🥕</span>'),
     ...Array(crystals).fill('<span class="js">🔮</span>'),
     ...Array(candies).fill('<span class="jc">🍬</span>'),
@@ -467,13 +507,14 @@ function renderJar() {
   ];
 
   const fill = document.getElementById('jar-fill');
-  const slots = carrots * 8 + crystals * 4 + candies * 2 + hearts;
+  const slots = diamonds * 50 + unicorns * 30 + drumsticks * 20 + avocados * 12 + carrots * 8 + crystals * 4 + candies * 2 + hearts;
   fill.style.height = Math.min(slots / 20 * 100, 100) + '%';
   fill.innerHTML = items.join('');
 
   const egg = document.getElementById('jar-egg');
   if (EASTER_EGGS[c]) { egg.textContent = EASTER_EGGS[c]; egg.style.display = 'block'; }
   else egg.style.display = 'none';
+  renderUnread();
 }
 
 // ── SPARKS ────────────────────────────────────────
@@ -499,8 +540,8 @@ function renderSparks() {
       <div class="spark-body">
         ${s.caption ? `<div class="spark-caption">${esc(s.caption)}</div>` : ''}
         <div class="spark-meta">${fmtTime(s.timestamp)} · ${esc(s.user)}</div>
-        <div class="wh-footer">
-          <span></span>
+        <div class="wh-footer" style="margin-top:8px">
+          <div class="wh-btn sm" onclick="readSpark('${s.id}')">${s.read ? '💗' : '🤍'}</div>
           <button class="reply-btn" onclick="toggleSparkReply('${s.id}')">💬 Reply</button>
         </div>
         ${replies.length ? `<div class="replies">${replies.map(r => `
@@ -523,6 +564,7 @@ function renderSparks() {
       </div>
     </div>`;
   }).join('');
+  renderUnread();
 }
 
 let _sparkFile = null;
@@ -650,6 +692,7 @@ function renderWhispers() {
       </div>
     </div>`;
   }).join('');
+  renderUnread();
 }
 
 async function sendWhisper() {
