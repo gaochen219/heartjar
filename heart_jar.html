@@ -746,13 +746,23 @@ async function sendReply(parentId) {
 async function readWhisper(id) {
   const w = S.whispers.find(x => x.id === id);
   if (!w || w.read) return;
+  w.read = true;
+  const btn = document.querySelector(`[onclick="readWhisper('${id}')"]`);
+  if (btn) {
+    btn.textContent = '💗';
+    const hint = btn.nextElementSibling?.querySelector('.wh-hint');
+    if (hint) hint.remove();
+  }
+  renderUnread();
+  floatHearts(2);
+  toast('Read +1 💗');
   try {
     await api('/whisper/read', { id });
     api('/heart', {});
-    floatHearts(2);
-    toast('Read +1 💗');
-    pollOnce();
   } catch(err) {
+    w.read = false;
+    if (btn) btn.textContent = '🤍';
+    renderUnread();
     toast('Could not update — check connection');
   }
 }
@@ -788,13 +798,19 @@ async function sendSparkReply(parentId) {
 async function readSpark(id) {
   const s = S.sparks.find(x => x.id === id);
   if (!s || s.read) return;
+  s.read = true;
+  const btn = document.querySelector(`[onclick="readSpark('${id}')"]`);
+  if (btn) btn.textContent = '💗';
+  renderUnread();
+  floatHearts(2);
+  toast('Read +1 💗');
   try {
     await api('/spark/read', { id });
     api('/heart', {});
-    floatHearts(2);
-    toast('Read +1 💗');
-    loadSparks();
   } catch(err) {
+    s.read = false;
+    if (btn) btn.textContent = '🤍';
+    renderUnread();
     toast('Could not update — check connection');
   }
 }
