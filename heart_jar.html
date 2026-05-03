@@ -139,6 +139,20 @@
   .reply-input:focus { border-color:var(--pink-light); }
   .reply-send-btn { margin-top:8px; float:right; background:var(--pink); color:#fff; border:none; border-radius:10px; padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer; }
 
+  /* ---- OLDER SPARKS SECTION ---- */
+  .older-section { margin-top:4px; }
+  .older-toggle { width:100%; background:var(--white); border:none; border-radius:14px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; font-family:inherit; transition:background 0.15s; }
+  .older-toggle:active { background:var(--pink-pale); }
+  .older-toggle-label { font-size:14px; font-weight:600; color:var(--text); }
+  .older-toggle-badge { font-size:12px; color:var(--pink); }
+  .older-months { margin-top:6px; display:flex; flex-direction:column; gap:6px; }
+  .month-header { background:var(--white); border-radius:12px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:background 0.15s; }
+  .month-header:active { background:var(--pink-pale); }
+  .month-title { font-size:14px; font-weight:600; color:var(--text); }
+  .month-meta { font-size:12px; color:var(--text-3); }
+  .month-body { padding:4px 0 4px 4px; }
+  .month-loading { text-align:center; padding:20px; color:var(--text-3); font-size:14px; }
+
   /* ---- UNREAD SECTION ---- */
   .unread-section { margin:0 0 20px; }
   .unread-row { display:flex; gap:10px; }
@@ -348,6 +362,10 @@ const S = {
   heartCount: 0,
   sparks: [],
   whispers: [],
+  olderMonths: [],
+  loadedMonths: {},
+  expandedOlder: false,
+  expandedMonths: new Set(),
   pollTimer: null
 };
 
@@ -457,8 +475,13 @@ async function pollOnce() {
 
 async function loadSparks() {
   try {
-    const data = await api('/sparks');
-    S.sparks = data.sparks || [];
+    const since = Date.now() - 7 * 24 * 3600 * 1000;
+    const [recentData, monthsData] = await Promise.all([
+      api('/sparks?since=' + since),
+      api('/sparks/months?before=' + since)
+    ]);
+    S.sparks = recentData.sparks || [];
+    S.olderMonths = monthsData.months || [];
     renderSparks();
   } catch(e) {
     console.warn('loadSparks failed:', e.message);
@@ -470,14 +493,16 @@ function renderUnread() {
   const el = document.getElementById('jar-unread');
   if (!el) return;
   const wCount = S.whispers.filter(w => !w.read).length;
-  const sCount = S.sparks.filter(s => !s.read).length;
+  const recentSUnread = S.sparks.filter(s => !s.read).length;
+  const olderSUnread = S.olderMonths.reduce((sum, m) => sum + (m.unread || 0), 0);
+  const sCount = recentSUnread + olderSUnread;
   if (wCount === 0 && sCount === 0) {
     el.innerHTML = `<div class="all-lit"><div class="all-lit-text">All hearts aglow — anything new to share? <span class="all-lit-heart">💗</span></div></div>`;
     return;
   }
   const btns = [];
-  if (wCount > 0) btns.push(`<button class="unread-btn" onclick="switchTab('whispers')"><div class="unread-count">${wCount} 🤍</div><div class="unread-label">Whispers</div></button>`);
   if (sCount > 0) btns.push(`<button class="unread-btn" onclick="switchTab('sparks')"><div class="unread-count">${sCount} 🤍</div><div class="unread-label">Sparks</div></button>`);
+  if (wCount > 0) btns.push(`<button class="unread-btn" onclick="switchTab('whispers')"><div class="unread-count">${wCount} 🤍</div><div class="unread-label">Whispers</div></button>`);
   el.innerHTML = `<div class="unread-row">${btns.join('')}</div>`;
 }
 
@@ -518,25 +543,21 @@ function renderJar() {
 }
 
 // ── SPARKS ────────────────────────────────────────
-function renderSparks() {
-  const el = document.getElementById('sparks-list');
-  const all = S.sparks;
-  if (!all.length) {
-    el.innerHTML = '<div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>';
-    return;
-  }
-  const topLevel = all.filter(s => !s.parentId).reverse();
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function buildSparkCardsHTML(allSparks) {
+  if (!allSparks || !allSparks.length) return '';
+  const topLevel = allSparks.filter(s => !s.parentId).reverse();
   const replyMap = {};
-  all.filter(s => s.parentId).forEach(r => {
+  allSparks.filter(s => s.parentId).forEach(r => {
     if (!replyMap[r.parentId]) replyMap[r.parentId] = [];
     replyMap[r.parentId].push(r);
   });
-
-  el.innerHTML = topLevel.map(s => {
+  return topLevel.map(s => {
     const replies = (replyMap[s.id] || []).sort((a, b) => a.timestamp - b.timestamp);
     return `
     <div class="spark-card">
-      <img class="spark-img" src="${s.image}" loading="lazy">
+      ${s.image ? `<img class="spark-img" src="${s.image}" loading="lazy">` : ''}
       <div class="spark-body">
         ${s.caption ? `<div class="spark-caption">${esc(s.caption)}</div>` : ''}
         <div class="spark-meta">${fmtTime(s.timestamp)} · ${esc(s.user)}</div>
@@ -564,6 +585,60 @@ function renderSparks() {
       </div>
     </div>`;
   }).join('');
+}
+
+function renderSparks() {
+  const el = document.getElementById('sparks-list');
+  if (!S.sparks.length && !S.olderMonths.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">✨</span>No sparks yet.<br>Add the first one.</div>';
+    renderUnread();
+    return;
+  }
+
+  let html = S.sparks.length
+    ? buildSparkCardsHTML(S.sparks)
+    : '<div class="empty" style="margin-bottom:12px"><span class="empty-icon">✨</span>Nothing new this week.</div>';
+
+  if (S.olderMonths.length) {
+    const totalOlderUnread = S.olderMonths.reduce((sum, m) => sum + (m.unread || 0), 0);
+    const badge = totalOlderUnread > 0 ? `${totalOlderUnread} 🤍` : '';
+    const chevron = S.expandedOlder ? '▼' : '▶';
+    const monthCount = S.olderMonths.length;
+
+    let monthsHtml = '';
+    if (S.expandedOlder) {
+      monthsHtml = `<div class="older-months">${S.olderMonths.map(m => {
+        const key = `${m.year}-${String(m.month).padStart(2,'0')}`;
+        const expanded = S.expandedMonths.has(key);
+        const label = MONTH_NAMES[m.month - 1] + ' ' + m.year;
+        const unreadBadge = m.unread > 0 ? ` · ${m.unread} 🤍` : '';
+        let bodyHtml = '';
+        if (expanded) {
+          const loaded = S.loadedMonths[key];
+          bodyHtml = loaded
+            ? `<div class="month-body">${buildSparkCardsHTML(loaded) || '<div class="month-loading">No photos this month.</div>'}</div>`
+            : '<div class="month-body"><div class="month-loading">Loading...</div></div>';
+        }
+        return `
+        <div class="month-header" onclick="toggleMonth(${m.year},${m.month})">
+          <span class="month-title">${expanded ? '▼' : '▶'} ${label}</span>
+          <span class="month-meta">${m.count} sparks${unreadBadge}</span>
+        </div>
+        ${bodyHtml}`;
+      }).join('')}</div>`;
+    }
+
+    html += `
+    <div class="older-section">
+      <button class="older-toggle" onclick="toggleOlderSection()">
+        <span class="older-toggle-label">${chevron} Older sparks (${monthCount} month${monthCount > 1 ? 's' : ''})</span>
+        <span class="older-toggle-badge">${badge}</span>
+      </button>
+      ${monthsHtml}
+    </div>`;
+  }
+
+  el.innerHTML = html;
   renderUnread();
 }
 
@@ -796,9 +871,22 @@ async function sendSparkReply(parentId) {
 }
 
 async function readSpark(id) {
-  const s = S.sparks.find(x => x.id === id);
+  let s = S.sparks.find(x => x.id === id);
+  let isOlder = false;
+  if (!s) {
+    isOlder = true;
+    for (const sparks of Object.values(S.loadedMonths)) {
+      s = sparks.find(x => x.id === id);
+      if (s) break;
+    }
+  }
   if (!s || s.read) return;
   s.read = true;
+  if (isOlder) {
+    const d = new Date(s.timestamp);
+    const m = S.olderMonths.find(m => m.year === d.getFullYear() && m.month === d.getMonth() + 1);
+    if (m && m.unread > 0) m.unread--;
+  }
   const btn = document.querySelector(`[onclick="readSpark('${id}')"]`);
   if (btn) btn.textContent = '💗';
   renderUnread();
@@ -809,9 +897,41 @@ async function readSpark(id) {
     api('/heart', {});
   } catch(err) {
     s.read = false;
+    if (isOlder) {
+      const d = new Date(s.timestamp);
+      const m = S.olderMonths.find(m => m.year === d.getFullYear() && m.month === d.getMonth() + 1);
+      if (m) m.unread++;
+    }
     if (btn) btn.textContent = '🤍';
     renderUnread();
     toast('Could not update — check connection');
+  }
+}
+
+function toggleOlderSection() {
+  S.expandedOlder = !S.expandedOlder;
+  renderSparks();
+}
+
+async function toggleMonth(year, month) {
+  const key = `${year}-${String(month).padStart(2,'0')}`;
+  if (S.expandedMonths.has(key)) {
+    S.expandedMonths.delete(key);
+    renderSparks();
+  } else {
+    S.expandedMonths.add(key);
+    renderSparks();
+    if (!S.loadedMonths[key]) {
+      const since = new Date(year, month - 1, 1).getTime();
+      const until = new Date(year, month, 1).getTime();
+      try {
+        const data = await api(`/sparks?since=${since}&until=${until}`);
+        S.loadedMonths[key] = data.sparks || [];
+      } catch(e) {
+        S.loadedMonths[key] = [];
+      }
+      renderSparks();
+    }
   }
 }
 
