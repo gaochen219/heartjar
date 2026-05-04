@@ -366,7 +366,8 @@ const S = {
   loadedMonths: {},
   expandedOlder: false,
   expandedMonths: new Set(),
-  pollTimer: null
+  pollTimer: null,
+  sparksLoadedAt: 0
 };
 
 let _sessionId = 0;
@@ -436,16 +437,16 @@ function doLogout() {
   S.heartCount = 0;
   S.sparks = [];
   S.whispers = [];
+  S.sparksLoadedAt = 0;
   showScreen('disguise');
 }
 
-async function enterApp() {
+function enterApp() {
   _sessionId++;
   showScreen('app');
   document.getElementById('app-user').textContent = 'Hi, ' + S.userName;
-  switchTab('jar');
-  await pollOnce();
-  loadSparks();
+  switchTab('jar');   // triggers pollOnce() internally
+  loadSparks();       // runs in parallel with pollOnce
   S.pollTimer = setInterval(pollOnce, 3000);
 }
 
@@ -473,7 +474,25 @@ async function pollOnce() {
   }
 }
 
-async function loadSparks() {
+async function loadSparks(force = false) {
+  const STALE_MS = 30000;
+  const hasCache = S.sparks.length > 0 || S.olderMonths.length > 0;
+  const fresh = (Date.now() - S.sparksLoadedAt) < STALE_MS;
+
+  // If we have fresh cache, just render it (no network call)
+  if (!force && hasCache && fresh) {
+    renderSparks();
+    return;
+  }
+
+  // Show existing data immediately while refreshing; show skeleton only on first load
+  if (hasCache) {
+    renderSparks();
+  } else {
+    const el = document.getElementById('sparks-list');
+    el.innerHTML = '<div class="month-loading" style="padding:24px 0;text-align:center">Loading sparks ✨</div>';
+  }
+
   try {
     const since = Date.now() - 7 * 24 * 3600 * 1000;
     const [recentData, monthsData] = await Promise.all([
@@ -482,6 +501,7 @@ async function loadSparks() {
     ]);
     S.sparks = recentData.sparks || [];
     S.olderMonths = monthsData.months || [];
+    S.sparksLoadedAt = Date.now();
     renderSparks();
   } catch(e) {
     console.warn('loadSparks failed:', e.message);
