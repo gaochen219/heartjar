@@ -494,7 +494,7 @@ async function loadSparks(force = false) {
   }
 
   try {
-    const since = Date.now() - 7 * 24 * 3600 * 1000;
+    const since = Date.now() - 3 * 24 * 3600 * 1000;  // Changed from 7 to 3 days
     const [recentData, monthsData] = await Promise.all([
       api('/sparks?since=' + since),
       api('/sparks/months?before=' + since)
@@ -567,25 +567,28 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 
 function buildSparkCardsHTML(allSparks) {
   if (!allSparks || !allSparks.length) return '';
-  const topLevel = allSparks.filter(s => !s.parentId).reverse();
+
+  // Build replyMap and topLevel in one pass
+  const topLevel = [];
   const replyMap = {};
-  allSparks.filter(s => s.parentId).forEach(r => {
-    if (!replyMap[r.parentId]) replyMap[r.parentId] = [];
-    replyMap[r.parentId].push(r);
-  });
+  for (const s of allSparks) {
+    if (s.parentId) {
+      if (!replyMap[s.parentId]) replyMap[s.parentId] = [];
+      replyMap[s.parentId].push(s);
+    } else {
+      topLevel.push(s);
+    }
+  }
+  topLevel.reverse();
+
+  // Pre-sort replies once
+  for (const pid in replyMap) {
+    replyMap[pid].sort((a, b) => a.timestamp - b.timestamp);
+  }
+
   return topLevel.map(s => {
-    const replies = (replyMap[s.id] || []).sort((a, b) => a.timestamp - b.timestamp);
-    return `
-    <div class="spark-card">
-      ${s.image ? `<img class="spark-img" src="${s.image}" loading="lazy">` : ''}
-      <div class="spark-body">
-        ${s.caption ? `<div class="spark-caption">${esc(s.caption)}</div>` : ''}
-        <div class="spark-meta">${fmtTime(s.timestamp)} · ${esc(s.user)}</div>
-        <div class="wh-footer" style="margin-top:8px">
-          <div class="wh-btn sm" onclick="readSpark('${s.id}')">${s.read ? '💗' : '🤍'}</div>
-          <button class="reply-btn" onclick="toggleSparkReply('${s.id}')">💬 Reply</button>
-        </div>
-        ${replies.length ? `<div class="replies">${replies.map(r => `
+    const replies = replyMap[s.id] || [];
+    const repliesHTML = replies.length ? `<div class="replies">${replies.map(r => `
           <div class="reply-card">
             <div class="wh-btn sm" onclick="readSpark('${r.id}')">${r.read ? '💗' : '🤍'}</div>
             <div class="wh-body">
@@ -596,7 +599,19 @@ function buildSparkCardsHTML(allSparks) {
                 <button class="reply-btn" onclick="toggleSparkReply('${s.id}')">💬 Reply</button>
               </div>
             </div>
-          </div>`).join('')}</div>` : ''}
+          </div>`).join('')}</div>` : '';
+
+    return `
+    <div class="spark-card">
+      ${s.image ? `<img class="spark-img" src="${s.image}" loading="lazy">` : ''}
+      <div class="spark-body">
+        ${s.caption ? `<div class="spark-caption">${esc(s.caption)}</div>` : ''}
+        <div class="spark-meta">${fmtTime(s.timestamp)} · ${esc(s.user)}</div>
+        <div class="wh-footer" style="margin-top:8px">
+          <div class="wh-btn sm" onclick="readSpark('${s.id}')">${s.read ? '💗' : '🤍'}</div>
+          <button class="reply-btn" onclick="toggleSparkReply('${s.id}')">💬 Reply</button>
+        </div>
+        ${repliesHTML}
         <div class="reply-compose" id="spark-reply-compose-${s.id}">
           <textarea class="reply-input" id="spark-reply-input-${s.id}" placeholder="write a reply..." rows="2" maxlength="300"></textarea>
           <button class="reply-send-btn" onclick="sendSparkReply('${s.id}')">Send 💗</button>
@@ -617,7 +632,7 @@ function renderSparks() {
 
   let html = S.sparks.length
     ? buildSparkCardsHTML(S.sparks)
-    : '<div class="empty" style="margin-bottom:12px"><span class="empty-icon">✨</span>Nothing new this week.</div>';
+    : '<div class="empty" style="margin-bottom:12px"><span class="empty-icon">✨</span>Nothing new in the past 3 days.</div>';
 
   if (S.olderMonths.length) {
     const totalOlderUnread = S.olderMonths.reduce((sum, m) => sum + (m.unread || 0), 0);
@@ -732,8 +747,8 @@ async function submitSpark() {
     closeModal();
     floatHearts(2);
     toast('Spark saved +1 💗');
-    pollOnce();
-    loadSparks();
+    // Only refresh sparks (pollOnce not needed here, will be called by next poll cycle)
+    loadSparks(true);  // force refresh
   } catch(err) {
     toast('Could not save — check connection');
   }
@@ -747,15 +762,40 @@ function renderWhispers() {
     el.innerHTML = '<div class="empty"><span class="empty-icon">💌</span>No whispers yet.</div>';
     return;
   }
-  const topLevel = all.filter(w => !w.parentId).reverse();
+
+  // Build replyMap and topLevel in one pass
+  const topLevel = [];
   const replyMap = {};
-  all.filter(w => w.parentId).forEach(r => {
-    if (!replyMap[r.parentId]) replyMap[r.parentId] = [];
-    replyMap[r.parentId].push(r);
-  });
+  for (const w of all) {
+    if (w.parentId) {
+      if (!replyMap[w.parentId]) replyMap[w.parentId] = [];
+      replyMap[w.parentId].push(w);
+    } else {
+      topLevel.push(w);
+    }
+  }
+  topLevel.reverse();
+
+  // Pre-sort replies once
+  for (const pid in replyMap) {
+    replyMap[pid].sort((a, b) => a.timestamp - b.timestamp);
+  }
 
   el.innerHTML = topLevel.map(w => {
-    const replies = (replyMap[w.id] || []).sort((a, b) => a.timestamp - b.timestamp);
+    const replies = replyMap[w.id] || [];
+    const repliesHTML = replies.length ? `<div class="replies">${replies.map(r => `
+          <div class="reply-card">
+            <div class="wh-btn sm" onclick="readWhisper('${r.id}')">${r.read ? '💗' : '🤍'}</div>
+            <div class="wh-body">
+              <div class="wh-from">🥕</div>
+              <div class="wh-text">${esc(r.text)}</div>
+              <div class="wh-footer">
+                <span class="wh-time">${fmtTime(r.timestamp)}</span>
+                <button class="reply-btn" onclick="toggleReply('${w.id}')">💬 Reply</button>
+              </div>
+            </div>
+          </div>`).join('')}</div>` : '';
+
     return `
     <div class="whisper-card">
       <div class="wh-btn" onclick="readWhisper('${w.id}')">${w.read ? '💗' : '🤍'}</div>
@@ -767,18 +807,7 @@ function renderWhispers() {
           <span class="wh-time">${fmtTime(w.timestamp)}</span>
           <button class="reply-btn" onclick="toggleReply('${w.id}')">💬 Reply</button>
         </div>
-        ${replies.length ? `<div class="replies">${replies.map(r => `
-          <div class="reply-card">
-            <div class="wh-btn sm" onclick="readWhisper('${r.id}')">${r.read ? '💗' : '🤍'}</div>
-            <div class="wh-body">
-              <div class="wh-from">🥕</div>
-              <div class="wh-text">${esc(r.text)}</div>
-              <div class="wh-footer">
-                <span class="wh-time">${fmtTime(r.timestamp)}</span>
-                <button class="reply-btn" onclick="toggleReply('${w.id}')">💬 Reply</button>
-              </div>
-            </div>
-          </div>`).join('')}</div>` : ''}
+        ${repliesHTML}
         <div class="reply-compose" id="reply-compose-${w.id}">
           <textarea class="reply-input" id="reply-input-${w.id}" placeholder="write a reply..." rows="2" maxlength="300"></textarea>
           <button class="reply-send-btn" onclick="sendReply('${w.id}')">Send 💗</button>
@@ -884,7 +913,7 @@ async function sendSparkReply(parentId) {
     document.getElementById('spark-reply-compose-' + parentId).style.display = 'none';
     floatHearts(1);
     toast('Reply sent +1 💗');
-    loadSparks();
+    loadSparks(true);  // force refresh
   } catch(err) {
     toast('Could not send — check connection');
   }
