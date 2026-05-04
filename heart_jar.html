@@ -630,9 +630,25 @@ function renderSparks() {
     return;
   }
 
-  let html = S.sparks.length
-    ? buildSparkCardsHTML(S.sparks)
-    : '<div class="empty" style="margin-bottom:12px"><span class="empty-icon">✨</span>Nothing new in the past 3 days.</div>';
+  // Split sparks into recent (3 days) and older unread
+  const threeDaysAgo = Date.now() - 3 * 24 * 3600 * 1000;
+  const recentSparks = S.sparks.filter(s => s.timestamp >= threeDaysAgo);
+  const olderUnreadSparks = S.sparks.filter(s => s.timestamp < threeDaysAgo);
+
+  let html = '';
+
+  // Render recent sparks (3 days)
+  if (recentSparks.length) {
+    html += buildSparkCardsHTML(recentSparks);
+  } else {
+    html += '<div class="empty" style="margin-bottom:12px"><span class="empty-icon">✨</span>Nothing new in the past 3 days.</div>';
+  }
+
+  // Render older unread sparks (before 3 days but has unread)
+  if (olderUnreadSparks.length) {
+    html += '<div style="margin:16px 0 8px;padding:8px 12px;background:rgba(93,255,159,0.05);border-left:2px solid var(--primary);font-size:13px;color:var(--text-2)">📌 Older sparks with unread hearts</div>';
+    html += buildSparkCardsHTML(olderUnreadSparks);
+  }
 
   if (S.olderMonths.length) {
     const totalOlderUnread = S.olderMonths.reduce((sum, m) => sum + (m.unread || 0), 0);
